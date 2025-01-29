@@ -7,6 +7,7 @@ name = "Meinkraft"
 version = "0.1.0"
 dependencies = [
  "gl",
+ "gl_generator",
  "glutin",
  "glutin-winit",
  "raw-window-handle",
