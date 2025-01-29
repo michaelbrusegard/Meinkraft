@@ -14,7 +14,7 @@ use std::num::NonZeroU32;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window::{Window, WindowId};
+use winit::window::{Window, WindowAttributes, WindowId};
 
 #[derive(Default)]
 struct App {
@@ -28,9 +28,19 @@ impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let template = ConfigTemplateBuilder::new()
             .with_alpha_size(8)
+            .with_depth_size(24)
+            .with_stencil_size(8)
+            .with_single_buffering(false)
             .with_transparency(true);
 
-        let display_builder = DisplayBuilder::new();
+        fn window_attributes() -> WindowAttributes {
+            Window::default_attributes()
+                .with_transparent(true)
+                .with_title("Glutin triangle gradient example (press Escape to exit)")
+        }
+
+        let display_builder =
+            DisplayBuilder::new().with_window_attributes(Some(window_attributes()));
 
         let (window, gl_config) = display_builder
             .build(event_loop, template, |configs| {
@@ -42,46 +52,43 @@ impl ApplicationHandler for App {
                             accum
                         }
                     })
-                    .unwrap()
+                    .expect("No valid OpenGL configurations found")
             })
-            .unwrap();
+            .expect("Failed to create window and GL config");
 
-        let window = window.unwrap();
-        let raw_window_handle = window.window_handle().unwrap();
+        let window = window.expect("Failed to create window");
+        let raw_window_handle = window.window_handle().expect("Failed to get window handle");
 
-        let context_attributes =
-            ContextAttributesBuilder::new().build(Some(raw_window_handle.as_raw()));
+        let context_attributes = ContextAttributesBuilder::new()
+            .with_profile(glutin::context::GlProfile::Core)
+            .with_context_api(glutin::context::ContextApi::OpenGl(None))
+            .build(Some(raw_window_handle.as_raw()));
 
         let gl_context = unsafe {
             gl_config
                 .display()
                 .create_context(&gl_config, &context_attributes)
-                .unwrap()
+                .expect("Failed to create GL context")
         };
 
-        let attrs = window.build_surface_attributes(Default::default()).unwrap();
+        let attrs = window
+            .build_surface_attributes(Default::default())
+            .expect("Failed to build surface attributes");
+
         let gl_surface = unsafe {
             gl_config
                 .display()
                 .create_window_surface(&gl_config, &attrs)
-                .unwrap()
+                .expect("Failed to create window surface")
         };
 
-        let gl_context = gl_context.make_current(&gl_surface).unwrap();
+        let gl_context = gl_context
+            .make_current(&gl_surface)
+            .expect("Failed to make context current");
 
-        self.renderer
-            .get_or_insert_with(|| Box::new(Renderer::new(&gl_config.display())));
-
-        // Set vsync
-        if let Err(res) = gl_surface
-            .set_swap_interval(&gl_context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()))
-        {
-            eprintln!("Error setting vsync: {res:?}");
-        }
-
+        self.window = Some(window);
         self.gl_context = Some(gl_context);
         self.gl_surface = Some(gl_surface);
-        self.window = Some(window);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
