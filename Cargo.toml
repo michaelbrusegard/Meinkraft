@@ -5,6 +5,10 @@ authors = [
   "Michael Brusegard <56915010+michaelbrusegard@users.noreply.github.com>",
 ]
 edition = "2021"
+repository = "https://github.com/michaelbrusegard/Meinkraft"
+license = "Apache-2.0"
+readme = "README.md"
+publish = false
 
 [dependencies]
 gl = "0.14.0"
