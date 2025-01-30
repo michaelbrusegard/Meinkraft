@@ -167,8 +167,9 @@ impl ApplicationHandler for App {
                         NonZeroU32::new(size.height).unwrap(),
                     );
 
-                    let renderer = self.renderer.as_ref().unwrap();
-                    renderer.resize(size.width as i32, size.height as i32);
+                    if let Some(renderer) = self.renderer.as_mut() {
+                        renderer.resize(size.width as i32, size.height as i32);
+                    }
                 }
             }
             WindowEvent::CloseRequested
@@ -192,8 +193,9 @@ impl ApplicationHandler for App {
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(AppState { gl_surface, window }) = self.state.as_ref() {
             let gl_context = self.gl_context.as_ref().unwrap();
-            let renderer = self.renderer.as_ref().unwrap();
-            renderer.draw();
+            if let Some(renderer) = self.renderer.as_mut() {
+                renderer.draw();
+            }
             window.request_redraw();
 
             gl_surface.swap_buffers(gl_context).unwrap();
