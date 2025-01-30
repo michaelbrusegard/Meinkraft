@@ -1,9 +1,10 @@
 use crate::gl;
+use crate::shaders::ShaderProgram;
 use std::ffi::CString;
 
 pub struct Renderer {
     gl: gl::Gl,
-    program: gl::types::GLuint,
+    shader_program: ShaderProgram,
     vao: gl::types::GLuint,
 }
 
@@ -21,7 +22,7 @@ impl Renderer {
 
         let vertices: Vec<f32> = vec![-0.5, -0.5, 0.0, 0.5, -0.5, 0.0, 0.0, 0.5, 0.0];
 
-        let (program, vao) = unsafe {
+        let (shader_program, vao) = unsafe {
             let mut vao = 0;
             gl.GenVertexArrays(1, &mut vao);
             gl.BindVertexArray(vao);
@@ -46,60 +47,16 @@ impl Renderer {
             );
             gl.EnableVertexAttribArray(0);
 
-            let vertex_shader = gl.CreateShader(gl::VERTEX_SHADER);
-            let fragment_shader = gl.CreateShader(gl::FRAGMENT_SHADER);
+            let shader_program = ShaderProgram::new(&gl);
 
-            let vertex_shader_source = CString::new(
-                r#"
-                #version 410
-                layout (location = 0) in vec3 position;
-                void main() {
-                    gl_Position = vec4(position, 1.0);
-                }
-            "#,
-            )
-            .unwrap();
-
-            let fragment_shader_source = CString::new(
-                r#"
-                #version 410
-                out vec4 FragColor;
-                void main() {
-                    FragColor = vec4(1.0, 0.5, 0.2, 1.0);
-                }
-            "#,
-            )
-            .unwrap();
-
-            gl.ShaderSource(
-                vertex_shader,
-                1,
-                &vertex_shader_source.as_ptr(),
-                std::ptr::null(),
-            );
-            gl.CompileShader(vertex_shader);
-
-            gl.ShaderSource(
-                fragment_shader,
-                1,
-                &fragment_shader_source.as_ptr(),
-                std::ptr::null(),
-            );
-            gl.CompileShader(fragment_shader);
-
-            let program = gl.CreateProgram();
-            gl.AttachShader(program, vertex_shader);
-            gl.AttachShader(program, fragment_shader);
-            gl.LinkProgram(program);
-
-            // Clean up shaders
-            gl.DeleteShader(vertex_shader);
-            gl.DeleteShader(fragment_shader);
-
-            (program, vao)
+            (shader_program, vao)
         };
 
-        Self { gl, program, vao }
+        Self {
+            gl,
+            shader_program,
+            vao,
+        }
     }
 
     pub fn draw(&self) {
@@ -107,7 +64,7 @@ impl Renderer {
             self.gl.ClearColor(0.1, 0.1, 0.1, 0.9);
             self.gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-            self.gl.UseProgram(self.program);
+            self.gl.UseProgram(self.shader_program.program_id);
             self.gl.BindVertexArray(self.vao);
             self.gl.DrawArrays(gl::TRIANGLES, 0, 3);
         }
@@ -123,7 +80,6 @@ impl Renderer {
 impl Drop for Renderer {
     fn drop(&mut self) {
         unsafe {
-            self.gl.DeleteProgram(self.program);
             self.gl.DeleteVertexArrays(1, &self.vao);
         }
     }

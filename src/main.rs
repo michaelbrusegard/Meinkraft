@@ -1,6 +1,7 @@
 mod app;
 mod gl;
 mod renderer;
+mod shaders;
 
 use glutin::config::ConfigTemplateBuilder;
 use glutin_winit::DisplayBuilder;
