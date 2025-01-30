@@ -1,74 +1,136 @@
 mod gl;
 mod renderer;
 
-use glutin::config::ConfigTemplateBuilder;
-use glutin::context::{ContextAttributesBuilder, PossiblyCurrentContext};
+use glutin::config::{Config, ConfigTemplateBuilder, GetGlConfig};
+use glutin::context::{
+    ContextApi, ContextAttributesBuilder, NotCurrentContext, PossiblyCurrentContext, Version,
+};
 use glutin::display::GetGlDisplay;
 use glutin::prelude::*;
 use glutin::surface::{Surface, SwapInterval, WindowSurface};
-use glutin_winit::DisplayBuilder;
-use glutin_winit::GlWindow;
+use glutin_winit::{DisplayBuilder, GlWindow};
 use raw_window_handle::HasWindowHandle;
 use renderer::Renderer;
+use std::error::Error;
 use std::num::NonZeroU32;
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
-#[derive(Default)]
+enum GlDisplayCreationState {
+    Builder(DisplayBuilder),
+    Init,
+}
+
+struct AppState {
+    gl_surface: Surface<WindowSurface>,
+    window: Window,
+}
+
 struct App {
-    window: Option<Window>,
+    template: ConfigTemplateBuilder,
+    state: Option<AppState>,
     gl_context: Option<PossiblyCurrentContext>,
-    gl_surface: Option<Surface<WindowSurface>>,
+    gl_display: GlDisplayCreationState,
     renderer: Option<Box<Renderer>>,
+    exit_state: Result<(), Box<dyn Error>>,
+}
+
+impl App {
+    fn new(template: ConfigTemplateBuilder, display_builder: DisplayBuilder) -> Self {
+        Self {
+            template,
+            gl_display: GlDisplayCreationState::Builder(display_builder),
+            exit_state: Ok(()),
+            gl_context: None,
+            state: None,
+            renderer: None,
+        }
+    }
+}
+
+fn create_gl_context(window: &Window, gl_config: &Config) -> NotCurrentContext {
+    let raw_window_handle = window.window_handle().ok().map(|wh| wh.as_raw());
+
+    let context_attributes = ContextAttributesBuilder::new().build(raw_window_handle);
+
+    let fallback_context_attributes = ContextAttributesBuilder::new()
+        .with_context_api(ContextApi::Gles(None))
+        .build(raw_window_handle);
+
+    let legacy_context_attributes = ContextAttributesBuilder::new()
+        .with_context_api(ContextApi::OpenGl(Some(Version::new(2, 1))))
+        .build(raw_window_handle);
+
+    let gl_display = gl_config.display();
+
+    unsafe {
+        gl_display
+            .create_context(gl_config, &context_attributes)
+            .unwrap_or_else(|_| {
+                gl_display
+                    .create_context(gl_config, &fallback_context_attributes)
+                    .unwrap_or_else(|_| {
+                        gl_display
+                            .create_context(gl_config, &legacy_context_attributes)
+                            .expect("failed to create context")
+                    })
+            })
+    }
+}
+
+fn window_attributes() -> WindowAttributes {
+    Window::default_attributes().with_title("Meinkraft")
+}
+
+fn gl_config_picker<'a>(configs: Box<dyn Iterator<Item = Config> + 'a>) -> Config {
+    configs
+        .reduce(|accum, config| {
+            if config.num_samples() > accum.num_samples() {
+                config
+            } else {
+                accum
+            }
+        })
+        .unwrap()
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let template = ConfigTemplateBuilder::new()
-            .with_alpha_size(8)
-            .with_depth_size(24)
-            .with_stencil_size(8)
-            .with_single_buffering(false)
-            .with_transparency(true);
+        let (window, gl_config) = match &self.gl_display {
+            GlDisplayCreationState::Builder(display_builder) => {
+                let (window, gl_config) = match display_builder.clone().build(
+                    event_loop,
+                    self.template.clone(),
+                    gl_config_picker,
+                ) {
+                    Ok((window, gl_config)) => (window.unwrap(), gl_config),
+                    Err(err) => {
+                        self.exit_state = Err(err);
+                        event_loop.exit();
+                        return;
+                    }
+                };
 
-        fn window_attributes() -> WindowAttributes {
-            Window::default_attributes()
-                .with_transparent(true)
-                .with_title("Glutin triangle gradient example (press Escape to exit)")
-        }
+                self.gl_display = GlDisplayCreationState::Init;
+                self.gl_context =
+                    Some(create_gl_context(&window, &gl_config).treat_as_possibly_current());
 
-        let display_builder =
-            DisplayBuilder::new().with_window_attributes(Some(window_attributes()));
-
-        let (window, gl_config) = display_builder
-            .build(event_loop, template, |configs| {
-                configs
-                    .reduce(|accum, config| {
-                        if config.num_samples() > accum.num_samples() {
-                            config
-                        } else {
-                            accum
-                        }
-                    })
-                    .expect("No valid OpenGL configurations found")
-            })
-            .expect("Failed to create window and GL config");
-
-        let window = window.expect("Failed to create window");
-        let raw_window_handle = window.window_handle().expect("Failed to get window handle");
-
-        let context_attributes = ContextAttributesBuilder::new()
-            .with_profile(glutin::context::GlProfile::Core)
-            .with_context_api(glutin::context::ContextApi::OpenGl(None))
-            .build(Some(raw_window_handle.as_raw()));
-
-        let gl_context = unsafe {
-            gl_config
-                .display()
-                .create_context(&gl_config, &context_attributes)
-                .expect("Failed to create GL context")
+                (window, gl_config)
+            }
+            GlDisplayCreationState::Init => {
+                let gl_config = self.gl_context.as_ref().unwrap().config();
+                match glutin_winit::finalize_window(event_loop, window_attributes(), &gl_config) {
+                    Ok(window) => (window, gl_config),
+                    Err(err) => {
+                        self.exit_state = Err(err.into());
+                        event_loop.exit();
+                        return;
+                    }
+                }
+            }
         };
 
         let attrs = window
@@ -79,58 +141,92 @@ impl ApplicationHandler for App {
             gl_config
                 .display()
                 .create_window_surface(&gl_config, &attrs)
-                .expect("Failed to create window surface")
+                .unwrap()
         };
 
-        let gl_context = gl_context
-            .make_current(&gl_surface)
-            .expect("Failed to make context current");
+        let gl_context = self.gl_context.as_ref().unwrap();
+        gl_context.make_current(&gl_surface).unwrap();
 
-        self.window = Some(window);
-        self.gl_context = Some(gl_context);
-        self.gl_surface = Some(gl_surface);
+        self.renderer
+            .get_or_insert_with(|| Box::new(Renderer::new(&gl_config.display())));
+
+        assert!(self
+            .state
+            .replace(AppState { gl_surface, window })
+            .is_none());
+    }
+
+    fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
+        self.state = None;
+        self.gl_context = Some(
+            self.gl_context
+                .take()
+                .unwrap()
+                .make_not_current()
+                .unwrap()
+                .treat_as_possibly_current(),
+        );
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
-            WindowEvent::CloseRequested => {
-                println!("The close button was pressed; stopping");
-                event_loop.exit();
-            }
-            WindowEvent::RedrawRequested => {
-                if let (Some(gl_context), Some(gl_surface), Some(renderer)) = (
-                    self.gl_context.as_ref(),
-                    self.gl_surface.as_ref(),
-                    self.renderer.as_ref(),
-                ) {
-                    renderer.draw();
-                    gl_surface.swap_buffers(gl_context).unwrap();
-                }
-                self.window.as_ref().unwrap().request_redraw();
-            }
             WindowEvent::Resized(size) if size.width != 0 && size.height != 0 => {
-                if let (Some(gl_context), Some(gl_surface), Some(renderer)) = (
-                    self.gl_context.as_ref(),
-                    self.gl_surface.as_ref(),
-                    self.renderer.as_ref(),
-                ) {
+                if let Some(AppState {
+                    gl_surface,
+                    window: _,
+                }) = self.state.as_ref()
+                {
+                    let gl_context = self.gl_context.as_ref().unwrap();
                     gl_surface.resize(
                         gl_context,
                         NonZeroU32::new(size.width).unwrap(),
                         NonZeroU32::new(size.height).unwrap(),
                     );
+
+                    let renderer = self.renderer.as_ref().unwrap();
                     renderer.resize(size.width as i32, size.height as i32);
                 }
             }
+            WindowEvent::CloseRequested
+            | WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        logical_key: Key::Named(NamedKey::Escape),
+                        ..
+                    },
+                ..
+            } => event_loop.exit(),
             _ => (),
+        }
+    }
+
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        let _gl_display = self.gl_context.take().unwrap().display();
+        self.state = None;
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(AppState { gl_surface, window }) = self.state.as_ref() {
+            let gl_context = self.gl_context.as_ref().unwrap();
+            let renderer = self.renderer.as_ref().unwrap();
+            renderer.draw();
+            window.request_redraw();
+
+            gl_surface.swap_buffers(gl_context).unwrap();
         }
     }
 }
 
-fn main() {
-    let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Wait);
+fn main() -> Result<(), Box<dyn Error>> {
+    let event_loop = EventLoop::new()?;
+    event_loop.set_control_flow(ControlFlow::Poll);
 
-    let mut app = App::default();
-    let _ = event_loop.run_app(&mut app);
+    let template = ConfigTemplateBuilder::new().with_alpha_size(8);
+
+    let display_builder = DisplayBuilder::new().with_window_attributes(Some(window_attributes()));
+
+    let mut app = App::new(template, display_builder);
+    event_loop.run_app(&mut app)?;
+
+    app.exit_state
 }
