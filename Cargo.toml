@@ -1,5 +1,5 @@
 [package]
-name = "Meinkraft"
+name = "meinkraft"
 version = "0.1.0"
 authors = [
   "Michael Brusegard <56915010+michaelbrusegard@users.noreply.github.com>",

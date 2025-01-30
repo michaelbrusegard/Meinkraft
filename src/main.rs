@@ -1,10 +1,6 @@
-mod app;
-mod gl;
-mod renderer;
-mod shaders;
-
 use glutin::config::ConfigTemplateBuilder;
 use glutin_winit::DisplayBuilder;
+use meinkraft::app;
 use std::error::Error;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;

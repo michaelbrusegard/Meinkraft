@@ -3,18 +3,6 @@
 version = 3
 
 [[package]]
-name = "Meinkraft"
-version = "0.1.0"
-dependencies = [
- "gl",
- "gl_generator",
- "glutin",
- "glutin-winit",
- "raw-window-handle",
- "winit",
-]
-
-[[package]]
 name = "ab_glyph"
 version = "0.2.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -558,6 +546,18 @@ name = "log"
 version = "0.4.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04cbf5b083de1c7e0222a7a51dbfdba1cbe1c6ab0b15e29fff3f6c077fd9cd9f"
+
+[[package]]
+name = "meinkraft"
+version = "0.1.0"
+dependencies = [
+ "gl",
+ "gl_generator",
+ "glutin",
+ "glutin-winit",
+ "raw-window-handle",
+ "winit",
+]
 
 [[package]]
 name = "memchr"
