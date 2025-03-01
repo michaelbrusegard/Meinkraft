@@ -13,31 +13,31 @@ use crate::systems;
 use crate::window::WindowManager;
 
 pub struct App {
-    window_manager: WindowManager,
-    game_state: Option<GameState>,
+    window: WindowManager,
+    state: Option<GameState>,
     pub exit_state: Result<(), Box<dyn Error>>,
 }
 
 impl App {
     pub fn new(template: ConfigTemplateBuilder, display_builder: DisplayBuilder) -> Self {
         Self {
-            window_manager: WindowManager::new(template, display_builder),
+            window: WindowManager::new(template, display_builder),
             exit_state: Ok(()),
-            game_state: None,
+            state: None,
         }
     }
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        match self.window_manager.resume(event_loop) {
+        match self.window.resume(event_loop) {
             Ok(()) => {
-                if self.game_state.is_none() {
-                    let gl = self.window_manager.create_gl();
+                if self.state.is_none() {
+                    let gl = self.window.create_gl();
                     let gl_state = GlState::new(gl);
                     let mut game_state = GameState::new(gl_state);
                     game_state.initialize();
-                    self.game_state = Some(game_state);
+                    self.state = Some(game_state);
                 }
             }
             Err(err) => {
@@ -48,15 +48,15 @@ impl ApplicationHandler for App {
     }
 
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
-        self.window_manager.suspend();
+        self.window.suspend();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) if size.width != 0 && size.height != 0 => {
-                self.window_manager.resize(size.width, size.height);
+                self.window.resize(size.width, size.height);
 
-                if let Some(game_state) = self.game_state.as_mut() {
+                if let Some(game_state) = self.state.as_mut() {
                     game_state.resize(size.width as i32, size.height as i32);
                 }
             }
@@ -74,13 +74,13 @@ impl ApplicationHandler for App {
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        self.window_manager.exit();
+        self.window.exit();
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(game_state) = self.game_state.as_ref() {
+        if let Some(game_state) = self.state.as_ref() {
             systems::render_system(game_state);
-            self.window_manager.swap_buffers();
+            self.window.swap_buffers();
         }
     }
 }
