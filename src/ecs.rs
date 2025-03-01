@@ -2,10 +2,9 @@ use glam::Vec3;
 use hecs::World;
 
 use crate::components::{Block, BlockType, Renderable, Transform};
-use crate::resources::{Camera, MeshRegistry};
+use crate::resources::MeshRegistry;
 
 pub fn setup_world(world: &mut World, mesh_registry: &mut MeshRegistry) -> usize {
-    // Register cube mesh
     let cube_mesh_id = register_cube_mesh(mesh_registry);
 
     // Create some blocks

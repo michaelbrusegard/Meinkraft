@@ -20,9 +20,9 @@ pub fn render_system(
 
         gl_state.gl.UseProgram(shader_program.program_id);
 
-        let model_name = CString::new("model").unwrap();
-        let view_name = CString::new("view").unwrap();
-        let projection_name = CString::new("projection").unwrap();
+        let model_name = CString::new("modelMatrix").unwrap();
+        let view_name = CString::new("viewMatrix").unwrap();
+        let projection_name = CString::new("projectionMatrix").unwrap();
 
         let model_loc = gl_state
             .gl
