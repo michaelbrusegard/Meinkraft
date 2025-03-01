@@ -8,6 +8,7 @@ use glutin::surface::{Surface, WindowSurface};
 use glutin_winit::{DisplayBuilder, GlWindow};
 use raw_window_handle::HasWindowHandle;
 use std::error::Error;
+use std::ffi::CString;
 use std::num::NonZeroU32;
 use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
@@ -15,7 +16,9 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
-use crate::renderer::Renderer;
+use crate::resources::GlState;
+use crate::state::GameState;
+use crate::systems;
 
 enum GlDisplayCreationState {
     Builder(DisplayBuilder),
@@ -32,7 +35,7 @@ pub struct App {
     state: Option<AppState>,
     gl_context: Option<PossiblyCurrentContext>,
     gl_display: GlDisplayCreationState,
-    renderer: Option<Box<Renderer>>,
+    game_state: Option<GameState>,
     pub exit_state: Result<(), Box<dyn Error>>,
 }
 
@@ -44,7 +47,7 @@ impl App {
             exit_state: Ok(()),
             gl_context: None,
             state: None,
-            renderer: None,
+            game_state: None,
         }
     }
 }
@@ -131,8 +134,25 @@ impl ApplicationHandler for App {
         let gl_context = self.gl_context.as_ref().unwrap();
         gl_context.make_current(&gl_surface).unwrap();
 
-        self.renderer
-            .get_or_insert_with(|| Box::new(Renderer::new(&gl_config.display())));
+        if self.game_state.is_none() {
+            let gl = unsafe {
+                let gl = crate::gl::Gl::load_with(|symbol| {
+                    let symbol = CString::new(symbol).unwrap();
+                    gl_config
+                        .display()
+                        .get_proc_address(symbol.as_c_str())
+                        .cast()
+                });
+
+                gl.Enable(crate::gl::DEPTH_TEST);
+                gl
+            };
+
+            let gl_state = GlState::new(gl);
+            let mut game_state = GameState::new(gl_state);
+            game_state.initialize();
+            self.game_state = Some(game_state);
+        }
 
         assert!(self
             .state
@@ -167,8 +187,8 @@ impl ApplicationHandler for App {
                         NonZeroU32::new(size.height).unwrap(),
                     );
 
-                    if let Some(renderer) = self.renderer.as_mut() {
-                        renderer.resize(size.width as i32, size.height as i32);
+                    if let Some(game_state) = self.game_state.as_mut() {
+                        game_state.resize(size.width as i32, size.height as i32);
                     }
                 }
             }
@@ -193,11 +213,12 @@ impl ApplicationHandler for App {
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(AppState { gl_surface, window }) = self.state.as_ref() {
             let gl_context = self.gl_context.as_ref().unwrap();
-            if let Some(renderer) = self.renderer.as_mut() {
-                renderer.draw();
-            }
-            window.request_redraw();
 
+            if let Some(game_state) = self.game_state.as_ref() {
+                systems::render_system(game_state);
+            }
+
+            window.request_redraw();
             gl_surface.swap_buffers(gl_context).unwrap();
         }
     }
