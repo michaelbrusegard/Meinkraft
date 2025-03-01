@@ -17,7 +17,7 @@ impl Camera {
             target,
             up,
             aspect_ratio,
-            fov: 45.0f32.to_radians(),
+            fov: 90.0f32.to_radians(),
             near: 0.1,
             far: 100.0,
         }
