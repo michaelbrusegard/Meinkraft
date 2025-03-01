@@ -5,3 +5,4 @@ pub mod resources;
 pub mod shaders;
 pub mod state;
 pub mod systems;
+pub mod window;
