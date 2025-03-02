@@ -4,6 +4,7 @@ use std::collections::HashMap;
 pub struct GlState {
     pub gl: gl::Gl,
     pub vaos: HashMap<usize, gl::types::GLuint>,
+    pub vbos: HashMap<usize, gl::types::GLuint>,
     pub ebos: HashMap<usize, gl::types::GLuint>,
 }
 
@@ -12,6 +13,7 @@ impl GlState {
         Self {
             gl,
             vaos: HashMap::new(),
+            vbos: HashMap::new(),
             ebos: HashMap::new(),
         }
     }
@@ -53,6 +55,7 @@ impl GlState {
             self.gl.EnableVertexAttribArray(0);
 
             self.vaos.insert(mesh_id, vao);
+            self.vbos.insert(mesh_id, vbo);
             self.ebos.insert(mesh_id, ebo);
         }
     }
@@ -61,6 +64,10 @@ impl GlState {
         unsafe {
             if let Some(vao) = self.vaos.remove(&mesh_id) {
                 self.gl.DeleteVertexArrays(1, &vao);
+            }
+
+            if let Some(vbo) = self.vbos.remove(&mesh_id) {
+                self.gl.DeleteBuffers(1, &vbo);
             }
 
             if let Some(ebo) = self.ebos.remove(&mesh_id) {
