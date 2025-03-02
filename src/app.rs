@@ -9,7 +9,7 @@ use winit::window::WindowId;
 
 use crate::resources::GlState;
 use crate::state::GameState;
-use crate::systems;
+use crate::systems::render_system;
 use crate::window::WindowManager;
 
 pub struct App {
@@ -79,7 +79,7 @@ impl ApplicationHandler for App {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(game_state) = self.state.as_ref() {
-            systems::render_system(game_state);
+            render_system(game_state);
             self.window.swap_buffers();
         }
     }
