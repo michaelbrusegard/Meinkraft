@@ -9,12 +9,13 @@ use winit::window::WindowId;
 
 use crate::resources::GlState;
 use crate::state::GameState;
-use crate::systems::render_system;
+use crate::systems::RenderSystem;
 use crate::window::WindowManager;
 
 pub struct App {
     window: WindowManager,
     state: Option<GameState>,
+    render_system: RenderSystem,
     pub exit_state: Result<(), Box<dyn Error>>,
 }
 
@@ -24,6 +25,7 @@ impl App {
             window: WindowManager::new(template, display_builder),
             exit_state: Ok(()),
             state: None,
+            render_system: RenderSystem::new(),
         }
     }
 }
@@ -79,7 +81,7 @@ impl ApplicationHandler for App {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(game_state) = self.state.as_ref() {
-            render_system(game_state);
+            self.render_system.render(game_state);
             self.window.swap_buffers();
         }
     }

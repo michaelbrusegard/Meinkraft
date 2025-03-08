@@ -27,5 +27,5 @@ mod resources {
 mod systems {
     mod render;
 
-    pub use render::render_system;
+    pub use render::RenderSystem;
 }
