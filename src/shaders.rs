@@ -1,5 +1,4 @@
 use crate::gl;
-use std::collections::HashMap;
 use std::ffi::CString;
 
 const VERTEX_SHADER: &str = include_str!("shaders/vertex.glsl");
@@ -8,7 +7,6 @@ const FRAGMENT_SHADER: &str = include_str!("shaders/fragment.glsl");
 pub struct ShaderProgram {
     gl: gl::Gl,
     pub program_id: gl::types::GLuint,
-    uniform_locations: HashMap<String, gl::types::GLint>,
 }
 
 impl ShaderProgram {
@@ -52,17 +50,7 @@ impl ShaderProgram {
         Self {
             gl: gl.clone(),
             program_id,
-            uniform_locations: HashMap::new(),
         }
-    }
-
-    pub fn get_uniform_location(&mut self, name: &str) -> gl::types::GLint {
-        if !self.uniform_locations.contains_key(name) {
-            let c_name = CString::new(name).unwrap();
-            let location = unsafe { self.gl.GetUniformLocation(self.program_id, c_name.as_ptr()) };
-            self.uniform_locations.insert(name.to_string(), location);
-        }
-        *self.uniform_locations.get(name).unwrap()
     }
 
     fn compile_shader(
