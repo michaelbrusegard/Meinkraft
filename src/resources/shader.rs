@@ -1,12 +1,15 @@
 use crate::gl;
+use glam::Mat4;
+use std::collections::HashMap;
 use std::ffi::CString;
 
-const VERTEX_SHADER: &str = include_str!("shaders/vertex.glsl");
-const FRAGMENT_SHADER: &str = include_str!("shaders/fragment.glsl");
+const VERTEX_SHADER: &str = include_str!("../shaders/vertex.glsl");
+const FRAGMENT_SHADER: &str = include_str!("../shaders/fragment.glsl");
 
 pub struct ShaderProgram {
     gl: gl::Gl,
     pub program_id: gl::types::GLuint,
+    uniform_locations: HashMap<String, gl::types::GLint>,
 }
 
 impl ShaderProgram {
@@ -47,10 +50,17 @@ impl ShaderProgram {
             program
         };
 
-        Self {
+        let mut shader = Self {
             gl: gl.clone(),
             program_id,
-        }
+            uniform_locations: HashMap::new(),
+        };
+
+        shader.register_uniform("modelMatrix");
+        shader.register_uniform("viewMatrix");
+        shader.register_uniform("projectionMatrix");
+
+        shader
     }
 
     fn compile_shader(
@@ -85,6 +95,29 @@ impl ShaderProgram {
             }
 
             Ok(shader)
+        }
+    }
+
+    pub fn use_program(&self) {
+        unsafe {
+            self.gl.UseProgram(self.program_id);
+        }
+    }
+
+    pub fn register_uniform(&mut self, name: &str) {
+        unsafe {
+            let c_name = CString::new(name).unwrap();
+            let location = self.gl.GetUniformLocation(self.program_id, c_name.as_ptr());
+            self.uniform_locations.insert(name.to_string(), location);
+        }
+    }
+
+    pub fn set_uniform_mat4(&self, name: &str, value: &Mat4) {
+        if let Some(&location) = self.uniform_locations.get(name) {
+            unsafe {
+                self.gl
+                    .UniformMatrix4fv(location, 1, gl::FALSE, value.as_ref().as_ptr());
+            }
         }
     }
 }

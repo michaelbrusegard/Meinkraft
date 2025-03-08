@@ -1,15 +1,20 @@
 use crate::gl;
 use std::collections::HashMap;
 
-pub struct GlState {
+pub struct Renderer {
     pub gl: gl::Gl,
     pub vaos: HashMap<usize, gl::types::GLuint>,
     pub vbos: HashMap<usize, gl::types::GLuint>,
     pub ebos: HashMap<usize, gl::types::GLuint>,
 }
 
-impl GlState {
+impl Renderer {
     pub fn new(gl: gl::Gl) -> Self {
+        unsafe {
+            gl.Enable(gl::DEPTH_BUFFER_BIT);
+            gl.Enable(gl::DEPTH_TEST);
+        }
+
         Self {
             gl,
             vaos: HashMap::new(),
@@ -73,6 +78,28 @@ impl GlState {
             if let Some(ebo) = self.ebos.remove(&mesh_id) {
                 self.gl.DeleteBuffers(1, &ebo);
             }
+        }
+    }
+
+    pub fn resize(&self, width: i32, height: i32) {
+        unsafe {
+            self.gl.Viewport(0, 0, width, height);
+        }
+    }
+
+    pub fn clear(&self) {
+        unsafe {
+            self.gl.ClearColor(0.1, 0.1, 0.1, 0.9);
+            self.gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+        }
+    }
+}
+
+impl Drop for Renderer {
+    fn drop(&mut self) {
+        let mesh_ids: Vec<usize> = self.vaos.keys().copied().collect();
+        for mesh_id in mesh_ids {
+            self.cleanup_mesh_buffers(mesh_id);
         }
     }
 }

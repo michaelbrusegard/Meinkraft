@@ -1,10 +1,8 @@
 pub mod app;
 mod gl;
-mod shaders;
-mod state;
 mod window;
 
-mod components {
+pub mod components {
     mod block;
     mod renderable;
     mod transform;
@@ -14,18 +12,22 @@ mod components {
     pub use transform::Transform;
 }
 
-mod resources {
+pub mod resources {
     mod camera;
-    mod gl_state;
     mod mesh;
+    mod renderer;
+    mod shader;
 
     pub use camera::Camera;
-    pub use gl_state::GlState;
-    pub use mesh::MeshRegistry;
+    pub use mesh::{Mesh, MeshRegistry};
+    pub use renderer::Renderer;
+    pub use shader::ShaderProgram;
 }
 
-mod systems {
+pub mod systems {
+    mod init;
     mod render;
 
+    pub use init::InitSystem;
     pub use render::RenderSystem;
 }
