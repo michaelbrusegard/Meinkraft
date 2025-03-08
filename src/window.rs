@@ -76,11 +76,16 @@ impl WindowManager {
             gl_config
                 .display()
                 .create_window_surface(&gl_config, &attrs)
-                .unwrap()
+                .map_err(|e| format!("Failed to create window surface: {}", e))?
         };
 
-        let gl_context = self.gl_context.as_ref().unwrap();
-        gl_context.make_current(&gl_surface).unwrap();
+        let gl_context = self
+            .gl_context
+            .as_ref()
+            .ok_or("GL context is not initialized")?;
+        gl_context
+            .make_current(&gl_surface)
+            .map_err(|e| format!("Failed to make GL context current: {}", e))?;
 
         assert!(self
             .state

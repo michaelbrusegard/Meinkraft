@@ -1,4 +1,5 @@
 use crate::gl;
+use std::collections::HashMap;
 use std::ffi::CString;
 
 const VERTEX_SHADER: &str = include_str!("shaders/vertex.glsl");
@@ -7,12 +8,16 @@ const FRAGMENT_SHADER: &str = include_str!("shaders/fragment.glsl");
 pub struct ShaderProgram {
     gl: gl::Gl,
     pub program_id: gl::types::GLuint,
+    uniform_locations: HashMap<String, gl::types::GLint>,
 }
 
 impl ShaderProgram {
     pub fn new(gl: &gl::Gl) -> Self {
-        let vertex_shader = Self::compile_shader(gl, gl::VERTEX_SHADER, VERTEX_SHADER);
-        let fragment_shader = Self::compile_shader(gl, gl::FRAGMENT_SHADER, FRAGMENT_SHADER);
+        let vertex_shader = Self::compile_shader(gl, gl::VERTEX_SHADER, VERTEX_SHADER)
+            .expect("Vertex shader compilation failed");
+
+        let fragment_shader = Self::compile_shader(gl, gl::FRAGMENT_SHADER, FRAGMENT_SHADER)
+            .expect("Fragment shader compilation failed");
 
         let program_id = unsafe {
             let program = gl.CreateProgram();
@@ -47,14 +52,24 @@ impl ShaderProgram {
         Self {
             gl: gl.clone(),
             program_id,
+            uniform_locations: HashMap::new(),
         }
+    }
+
+    pub fn get_uniform_location(&mut self, name: &str) -> gl::types::GLint {
+        if !self.uniform_locations.contains_key(name) {
+            let c_name = CString::new(name).unwrap();
+            let location = unsafe { self.gl.GetUniformLocation(self.program_id, c_name.as_ptr()) };
+            self.uniform_locations.insert(name.to_string(), location);
+        }
+        *self.uniform_locations.get(name).unwrap()
     }
 
     fn compile_shader(
         gl: &gl::Gl,
         shader_type: gl::types::GLenum,
         source: &str,
-    ) -> gl::types::GLuint {
+    ) -> Result<gl::types::GLuint, String> {
         unsafe {
             let shader = gl.CreateShader(shader_type);
             let shader_source = CString::new(source).unwrap();
@@ -73,13 +88,15 @@ impl ShaderProgram {
                     std::ptr::null_mut(),
                     buffer.as_mut_ptr() as *mut gl::types::GLchar,
                 );
-                panic!(
-                    "{}",
-                    std::str::from_utf8(&buffer).expect("ShaderInfoLog not valid utf8")
-                );
+
+                let error_message =
+                    std::str::from_utf8(&buffer).expect("ShaderInfoLog not valid utf8");
+
+                gl.DeleteShader(shader);
+                return Err(error_message.to_string());
             }
 
-            shader
+            Ok(shader)
         }
     }
 }
