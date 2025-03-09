@@ -1,9 +1,10 @@
 use std::collections::HashSet;
+use winit::event::MouseButton;
 use winit::keyboard::Key;
 
 pub struct InputState {
     pub pressed_keys: HashSet<Key>,
-    pub pressed_mouse_buttons: HashSet<u32>,
+    pub pressed_mouse_buttons: HashSet<MouseButton>,
     pub mouse_position: (f32, f32),
     pub mouse_delta: (f32, f32),
 }
@@ -22,7 +23,7 @@ impl InputState {
         self.pressed_keys.contains(physical_key)
     }
 
-    pub fn is_mouse_button_pressed(&self, button: u32) -> bool {
+    pub fn is_mouse_button_pressed(&self, button: MouseButton) -> bool {
         self.pressed_mouse_buttons.contains(&button)
     }
 

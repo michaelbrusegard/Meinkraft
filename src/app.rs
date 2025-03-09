@@ -78,16 +78,22 @@ impl App {
         }
     }
 
-    fn toggle_cursor_grab(&mut self) {
+    fn release_cursor(&mut self) {
         if let Some(window) = self.window_manager.state.as_ref().map(|s| &s.window) {
-            self.cursor_grabbed = !self.cursor_grabbed;
-
             if self.cursor_grabbed {
-                let _ = window.set_cursor_grab(CursorGrabMode::Locked);
-                window.set_cursor_visible(false);
-            } else {
+                self.cursor_grabbed = false;
                 let _ = window.set_cursor_grab(CursorGrabMode::None);
                 window.set_cursor_visible(true);
+            }
+        }
+    }
+
+    fn grab_cursor(&mut self) {
+        if let Some(window) = self.window_manager.state.as_ref().map(|s| &s.window) {
+            if !self.cursor_grabbed {
+                self.cursor_grabbed = true;
+                let _ = window.set_cursor_grab(CursorGrabMode::Locked);
+                window.set_cursor_visible(false);
             }
         }
     }
@@ -138,10 +144,22 @@ impl ApplicationHandler for App {
 
                 if let Key::Named(NamedKey::Escape) = event.logical_key {
                     if event.state == ElementState::Pressed {
-                        self.toggle_cursor_grab();
+                        self.release_cursor();
                     }
                 }
             }
+            WindowEvent::MouseInput { state, button, .. } => match state {
+                ElementState::Pressed => {
+                    self.input_state.pressed_mouse_buttons.insert(button);
+
+                    if !self.cursor_grabbed {
+                        self.grab_cursor();
+                    }
+                }
+                ElementState::Released => {
+                    self.input_state.pressed_mouse_buttons.remove(&button);
+                }
+            },
             WindowEvent::CloseRequested => event_loop.exit(),
             _ => (),
         }
@@ -157,19 +175,8 @@ impl ApplicationHandler for App {
             return;
         }
 
-        match event {
-            DeviceEvent::MouseMotion { delta } => {
-                self.input_state.mouse_delta = (delta.0 as f32, delta.1 as f32);
-            }
-            DeviceEvent::Button { button, state } => match state {
-                ElementState::Pressed => {
-                    self.input_state.pressed_mouse_buttons.insert(button);
-                }
-                ElementState::Released => {
-                    self.input_state.pressed_mouse_buttons.remove(&button);
-                }
-            },
-            _ => (),
+        if let DeviceEvent::MouseMotion { delta } = event {
+            self.input_state.mouse_delta = (delta.0 as f32, delta.1 as f32);
         }
     }
 
