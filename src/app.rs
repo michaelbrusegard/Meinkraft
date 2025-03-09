@@ -5,7 +5,7 @@ use glutin_winit::DisplayBuilder;
 use hecs::World;
 use std::error::Error;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, WindowEvent};
+use winit::event::{DeviceEvent, ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{CursorGrabMode, WindowId};
@@ -27,6 +27,7 @@ pub struct App {
     input_state: InputState,
     input_system: InputSystem,
     pub exit_state: Result<(), Box<dyn Error>>,
+    cursor_grabbed: bool,
 }
 
 impl App {
@@ -43,6 +44,7 @@ impl App {
             render_system: RenderSystem::new(),
             input_state: InputState::new(),
             input_system: InputSystem::new(),
+            cursor_grabbed: true,
         }
     }
 
@@ -71,9 +73,22 @@ impl App {
         self.shader_program = Some(shader_program);
 
         if let Some(window) = self.window_manager.state.as_ref().map(|s| &s.window) {
-            use winit::window::CursorGrabMode;
             let _ = window.set_cursor_grab(CursorGrabMode::Locked);
             window.set_cursor_visible(false);
+        }
+    }
+
+    fn toggle_cursor_grab(&mut self) {
+        if let Some(window) = self.window_manager.state.as_ref().map(|s| &s.window) {
+            self.cursor_grabbed = !self.cursor_grabbed;
+
+            if self.cursor_grabbed {
+                let _ = window.set_cursor_grab(CursorGrabMode::Locked);
+                window.set_cursor_visible(false);
+            } else {
+                let _ = window.set_cursor_grab(CursorGrabMode::None);
+                window.set_cursor_visible(true);
+            }
         }
     }
 }
@@ -123,37 +138,37 @@ impl ApplicationHandler for App {
 
                 if let Key::Named(NamedKey::Escape) = event.logical_key {
                     if event.state == ElementState::Pressed {
-                        if let Some(window) = self.window_manager.state.as_ref().map(|s| &s.window)
-                        {
-                            static mut IS_CURSOR_GRABBED: bool = true;
-
-                            unsafe {
-                                IS_CURSOR_GRABBED = !IS_CURSOR_GRABBED;
-
-                                if IS_CURSOR_GRABBED {
-                                    let _ = window.set_cursor_grab(CursorGrabMode::Locked);
-                                    window.set_cursor_visible(false);
-                                } else {
-                                    let _ = window.set_cursor_grab(CursorGrabMode::None);
-                                    window.set_cursor_visible(true);
-                                }
-                            }
-                        }
+                        self.toggle_cursor_grab();
                     }
                 }
             }
-            WindowEvent::CursorMoved { position, .. } => {
-                let new_pos = (position.x as f32, position.y as f32);
-                if self.input_state.mouse_position != (0.0, 0.0) {
-                    self.input_state.mouse_delta = (
-                        new_pos.0 - self.input_state.mouse_position.0,
-                        new_pos.1 - self.input_state.mouse_position.1,
-                    );
-                }
-
-                self.input_state.mouse_position = new_pos;
-            }
             WindowEvent::CloseRequested => event_loop.exit(),
+            _ => (),
+        }
+    }
+
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: winit::event::DeviceId,
+        event: DeviceEvent,
+    ) {
+        if !self.cursor_grabbed {
+            return;
+        }
+
+        match event {
+            DeviceEvent::MouseMotion { delta } => {
+                self.input_state.mouse_delta = (delta.0 as f32, delta.1 as f32);
+            }
+            DeviceEvent::Button { button, state } => match state {
+                ElementState::Pressed => {
+                    self.input_state.pressed_mouse_buttons.insert(button);
+                }
+                ElementState::Released => {
+                    self.input_state.pressed_mouse_buttons.remove(&button);
+                }
+            },
             _ => (),
         }
     }
