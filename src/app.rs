@@ -5,10 +5,10 @@ use glutin_winit::DisplayBuilder;
 use hecs::World;
 use std::error::Error;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, WindowEvent};
+use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
-use winit::window::WindowId;
+use winit::window::{CursorGrabMode, WindowId};
 
 use crate::resources::{Camera, MeshRegistry, Renderer, ShaderProgram};
 use crate::systems::{InitSystem, RenderSystem};
@@ -69,6 +69,12 @@ impl App {
         self.mesh_registry = Some(mesh_registry);
         self.renderer = Some(renderer);
         self.shader_program = Some(shader_program);
+
+        if let Some(window) = self.window_manager.state.as_ref().map(|s| &s.window) {
+            use winit::window::CursorGrabMode;
+            let _ = window.set_cursor_grab(CursorGrabMode::Locked);
+            window.set_cursor_visible(false);
+        }
     }
 }
 
@@ -117,9 +123,35 @@ impl ApplicationHandler for App {
 
                 if let Key::Named(NamedKey::Escape) = event.logical_key {
                     if event.state == ElementState::Pressed {
-                        event_loop.exit();
+                        if let Some(window) = self.window_manager.state.as_ref().map(|s| &s.window)
+                        {
+                            static mut IS_CURSOR_GRABBED: bool = true;
+
+                            unsafe {
+                                IS_CURSOR_GRABBED = !IS_CURSOR_GRABBED;
+
+                                if IS_CURSOR_GRABBED {
+                                    let _ = window.set_cursor_grab(CursorGrabMode::Locked);
+                                    window.set_cursor_visible(false);
+                                } else {
+                                    let _ = window.set_cursor_grab(CursorGrabMode::None);
+                                    window.set_cursor_visible(true);
+                                }
+                            }
+                        }
                     }
                 }
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                let new_pos = (position.x as f32, position.y as f32);
+                if self.input_state.mouse_position != (0.0, 0.0) {
+                    self.input_state.mouse_delta = (
+                        new_pos.0 - self.input_state.mouse_position.0,
+                        new_pos.1 - self.input_state.mouse_position.1,
+                    );
+                }
+
+                self.input_state.mouse_position = new_pos;
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             _ => (),
@@ -131,10 +163,6 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if !self.input_state.pressed_keys.is_empty() {
-            println!("Pressed keys: {:?}", self.input_state.pressed_keys);
-        }
-
         if let (Some(world), Some(camera)) = (self.world.as_mut(), self.camera.as_mut()) {
             self.input_system.update(world, &self.input_state, camera);
         }
@@ -149,5 +177,7 @@ impl ApplicationHandler for App {
                 .render(world, camera, renderer, shader_program);
             self.window_manager.swap_buffers();
         }
+
+        self.input_state.reset_frame_state();
     }
 }
