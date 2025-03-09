@@ -1,6 +1,6 @@
 pub mod app;
 mod gl;
-mod window;
+mod window_manager;
 
 pub mod components {
     mod block;

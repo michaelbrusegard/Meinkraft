@@ -10,11 +10,11 @@ use winit::window::WindowId;
 
 use crate::resources::{Camera, MeshRegistry, Renderer, ShaderProgram};
 use crate::systems::{InitSystem, RenderSystem};
-use crate::window::WindowManager;
+use crate::window_manager::WindowManager;
 use glam::Vec3;
 
 pub struct App {
-    window: WindowManager,
+    window_manager: WindowManager,
     world: Option<World>,
     camera: Option<Camera>,
     mesh_registry: Option<MeshRegistry>,
@@ -28,7 +28,7 @@ pub struct App {
 impl App {
     pub fn new(template: ConfigTemplateBuilder, display_builder: DisplayBuilder) -> Self {
         Self {
-            window: WindowManager::new(template, display_builder),
+            window_manager: WindowManager::new(template, display_builder),
             exit_state: Ok(()),
             world: None,
             camera: None,
@@ -41,7 +41,7 @@ impl App {
     }
 
     fn initialize_game(&mut self) {
-        let gl = self.window.create_gl();
+        let gl = self.window_manager.create_gl();
         let mut renderer = Renderer::new(gl);
         let shader_program = ShaderProgram::new(&renderer.gl);
 
@@ -68,7 +68,7 @@ impl App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        match self.window.resume(event_loop) {
+        match self.window_manager.resume(event_loop) {
             Ok(()) => {
                 if self.world.is_none() {
                     self.initialize_game();
@@ -82,13 +82,13 @@ impl ApplicationHandler for App {
     }
 
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
-        self.window.suspend();
+        self.window_manager.suspend();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) if size.width != 0 && size.height != 0 => {
-                self.window.resize(size.width, size.height);
+                self.window_manager.resize(size.width, size.height);
 
                 if let (Some(renderer), Some(camera)) =
                     (self.renderer.as_ref(), self.camera.as_mut())
@@ -111,7 +111,7 @@ impl ApplicationHandler for App {
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        self.window.exit();
+        self.window_manager.exit();
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
@@ -123,7 +123,7 @@ impl ApplicationHandler for App {
         ) {
             self.render_system
                 .render(world, camera, renderer, shader_program);
-            self.window.swap_buffers();
+            self.window_manager.swap_buffers();
         }
     }
 }
