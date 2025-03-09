@@ -43,3 +43,9 @@ impl RenderSystem {
         }
     }
 }
+
+impl Default for RenderSystem {
+    fn default() -> Self {
+        Self::new()
+    }
+}

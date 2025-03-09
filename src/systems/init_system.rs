@@ -81,3 +81,9 @@ impl InitSystem {
         }
     }
 }
+
+impl Default for InitSystem {
+    fn default() -> Self {
+        Self::new()
+    }
+}
