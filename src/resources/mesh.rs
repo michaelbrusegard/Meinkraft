@@ -12,13 +12,13 @@ impl MeshRegistry {
         Self { meshes: Vec::new() }
     }
 
-    pub fn register_mesh(&mut self, vertices: Vec<f32>, indices: Vec<u32>) -> usize {
+    fn register_mesh(&mut self, vertices: Vec<f32>, indices: Vec<u32>) -> usize {
         let mesh = Mesh { vertices, indices };
         self.meshes.push(mesh);
         self.meshes.len() - 1
     }
 
-    pub fn register_cube_mesh(&mut self) -> usize {
+    pub fn register_voxel_mesh(&mut self) -> usize {
         let vertices: Vec<f32> = vec![
             // Front face
             -0.5, -0.5, 0.5, // 0

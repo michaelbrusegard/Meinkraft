@@ -16,48 +16,48 @@ impl InitSystem {
         mesh_registry: &mut MeshRegistry,
         renderer: &mut Renderer,
     ) {
-        let cube_mesh_id = mesh_registry.register_cube_mesh();
-        self.setup_world(world, cube_mesh_id);
+        let voxel_mesh_id = mesh_registry.register_voxel_mesh();
+        self.setup_world(world, voxel_mesh_id);
         self.setup_mesh_buffers(mesh_registry, renderer);
     }
 
-    fn setup_world(&self, world: &mut World, cube_mesh_id: usize) {
+    fn setup_world(&self, world: &mut World, voxel_mesh_id: usize) {
         // Create some blocks
         self.spawn_block(
             world,
             Vec3::new(0.0, 0.0, 0.0),
             BlockType::Dirt,
-            cube_mesh_id,
+            voxel_mesh_id,
         );
         self.spawn_block(
             world,
             Vec3::new(1.0, 0.0, 0.0),
             BlockType::Stone,
-            cube_mesh_id,
+            voxel_mesh_id,
         );
         self.spawn_block(
             world,
             Vec3::new(0.0, 1.0, 0.0),
             BlockType::Grass,
-            cube_mesh_id,
+            voxel_mesh_id,
         );
         self.spawn_block(
             world,
             Vec3::new(0.0, 0.0, 1.0),
             BlockType::Dirt,
-            cube_mesh_id,
+            voxel_mesh_id,
         );
         self.spawn_block(
             world,
             Vec3::new(-1.0, 0.0, 0.0),
             BlockType::Stone,
-            cube_mesh_id,
+            voxel_mesh_id,
         );
         self.spawn_block(
             world,
             Vec3::new(-2.0, 0.0, 0.0),
             BlockType::Stone,
-            cube_mesh_id,
+            voxel_mesh_id,
         );
     }
 

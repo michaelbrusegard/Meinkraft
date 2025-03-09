@@ -16,18 +16,18 @@ pub mod resources {
     mod camera;
     mod mesh;
     mod renderer;
-    mod shader;
+    mod shader_program;
 
     pub use camera::Camera;
     pub use mesh::{Mesh, MeshRegistry};
     pub use renderer::Renderer;
-    pub use shader::ShaderProgram;
+    pub use shader_program::ShaderProgram;
 }
 
 pub mod systems {
-    mod init;
-    mod render;
+    mod init_system;
+    mod render_system;
 
-    pub use init::InitSystem;
-    pub use render::RenderSystem;
+    pub use init_system::InitSystem;
+    pub use render_system::RenderSystem;
 }
