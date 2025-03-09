@@ -14,11 +14,13 @@ pub mod components {
 
 pub mod resources {
     mod camera;
+    mod input_state;
     mod mesh;
     mod renderer;
     mod shader_program;
 
     pub use camera::Camera;
+    pub use input_state::InputState;
     pub use mesh::{Mesh, MeshRegistry};
     pub use renderer::Renderer;
     pub use shader_program::ShaderProgram;
@@ -26,8 +28,10 @@ pub mod resources {
 
 pub mod systems {
     mod init_system;
+    mod input_system;
     mod render_system;
 
     pub use init_system::InitSystem;
+    pub use input_system::InputSystem;
     pub use render_system::RenderSystem;
 }

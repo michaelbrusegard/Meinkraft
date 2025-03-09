@@ -1,9 +1,11 @@
+use crate::resources::InputState;
+use crate::systems::InputSystem;
 use glutin::config::ConfigTemplateBuilder;
 use glutin_winit::DisplayBuilder;
 use hecs::World;
 use std::error::Error;
 use winit::application::ApplicationHandler;
-use winit::event::{KeyEvent, WindowEvent};
+use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
 use winit::window::WindowId;
@@ -22,6 +24,8 @@ pub struct App {
     shader_program: Option<ShaderProgram>,
     init_system: InitSystem,
     render_system: RenderSystem,
+    input_state: InputState,
+    input_system: InputSystem,
     pub exit_state: Result<(), Box<dyn Error>>,
 }
 
@@ -37,6 +41,8 @@ impl App {
             shader_program: None,
             init_system: InitSystem::new(),
             render_system: RenderSystem::new(),
+            input_state: InputState::new(),
+            input_system: InputSystem::new(),
         }
     }
 
@@ -97,15 +103,25 @@ impl ApplicationHandler for App {
                     camera.update_aspect_ratio(size.width as f32, size.height as f32);
                 }
             }
-            WindowEvent::CloseRequested
-            | WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        logical_key: Key::Named(NamedKey::Escape),
-                        ..
-                    },
-                ..
-            } => event_loop.exit(),
+            WindowEvent::KeyboardInput { event, .. } => {
+                match event.state {
+                    ElementState::Pressed => {
+                        self.input_state
+                            .pressed_keys
+                            .insert(event.logical_key.clone());
+                    }
+                    ElementState::Released => {
+                        self.input_state.pressed_keys.remove(&event.logical_key);
+                    }
+                }
+
+                if let Key::Named(NamedKey::Escape) = event.logical_key {
+                    if event.state == ElementState::Pressed {
+                        event_loop.exit();
+                    }
+                }
+            }
+            WindowEvent::CloseRequested => event_loop.exit(),
             _ => (),
         }
     }
@@ -115,6 +131,14 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if !self.input_state.pressed_keys.is_empty() {
+            println!("Pressed keys: {:?}", self.input_state.pressed_keys);
+        }
+
+        if let (Some(world), Some(camera)) = (self.world.as_mut(), self.camera.as_mut()) {
+            self.input_system.update(world, &self.input_state, camera);
+        }
+
         if let (Some(world), Some(camera), Some(renderer), Some(shader_program)) = (
             self.world.as_ref(),
             self.camera.as_ref(),
