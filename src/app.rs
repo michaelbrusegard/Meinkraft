@@ -5,9 +5,8 @@ use glutin_winit::DisplayBuilder;
 use hecs::World;
 use std::error::Error;
 use winit::application::ApplicationHandler;
-use winit::event::{DeviceEvent, ElementState, WindowEvent};
+use winit::event::{DeviceEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
-use winit::keyboard::{Key, NamedKey};
 use winit::window::{CursorGrabMode, WindowId};
 
 use crate::resources::{Camera, Config, MeshRegistry, Renderer, ShaderProgram};
@@ -27,7 +26,6 @@ pub struct App {
     input_state: InputState,
     input_system: InputSystem,
     pub exit_state: Result<(), Box<dyn Error>>,
-    cursor_grabbed: bool,
 }
 
 impl App {
@@ -45,7 +43,6 @@ impl App {
             render_system: RenderSystem::new(),
             input_state: InputState::new(),
             input_system: InputSystem::new(config),
-            cursor_grabbed: true,
         }
     }
 
@@ -76,26 +73,6 @@ impl App {
         if let Some(window) = self.window_manager.state.as_ref().map(|s| &s.window) {
             let _ = window.set_cursor_grab(CursorGrabMode::Locked);
             window.set_cursor_visible(false);
-        }
-    }
-
-    fn release_cursor(&mut self) {
-        if let Some(window) = self.window_manager.state.as_ref().map(|s| &s.window) {
-            if self.cursor_grabbed {
-                self.cursor_grabbed = false;
-                let _ = window.set_cursor_grab(CursorGrabMode::None);
-                window.set_cursor_visible(true);
-            }
-        }
-    }
-
-    fn grab_cursor(&mut self) {
-        if let Some(window) = self.window_manager.state.as_ref().map(|s| &s.window) {
-            if !self.cursor_grabbed {
-                self.cursor_grabbed = true;
-                let _ = window.set_cursor_grab(CursorGrabMode::Locked);
-                window.set_cursor_visible(false);
-            }
         }
     }
 }
@@ -131,38 +108,12 @@ impl ApplicationHandler for App {
                     camera.update_aspect_ratio(size.width as f32, size.height as f32);
                 }
             }
-            WindowEvent::KeyboardInput { event, .. } => {
-                match event.state {
-                    ElementState::Pressed => {
-                        self.input_state
-                            .pressed_keys
-                            .insert(event.logical_key.clone());
-                    }
-                    ElementState::Released => {
-                        self.input_state.remove_key(&event.logical_key);
-                    }
-                }
-
-                if let Key::Named(NamedKey::Escape) = event.logical_key {
-                    if event.state == ElementState::Pressed {
-                        self.release_cursor();
-                    }
-                }
-            }
-            WindowEvent::MouseInput { state, button, .. } => match state {
-                ElementState::Pressed => {
-                    self.input_state.pressed_mouse_buttons.insert(button);
-
-                    if !self.cursor_grabbed {
-                        self.grab_cursor();
-                    }
-                }
-                ElementState::Released => {
-                    self.input_state.pressed_mouse_buttons.remove(&button);
-                }
-            },
             WindowEvent::CloseRequested => event_loop.exit(),
-            _ => (),
+            _ => {
+                let window = self.window_manager.state.as_ref().map(|s| &s.window);
+                self.input_system
+                    .handle_window_event(&event, &mut self.input_state, window);
+            }
         }
     }
 
@@ -172,13 +123,8 @@ impl ApplicationHandler for App {
         _device_id: winit::event::DeviceId,
         event: DeviceEvent,
     ) {
-        if !self.cursor_grabbed {
-            return;
-        }
-
-        if let DeviceEvent::MouseMotion { delta } = event {
-            self.input_state.mouse_delta = (delta.0 as f32, delta.1 as f32);
-        }
+        self.input_system
+            .handle_device_event(&event, &mut self.input_state);
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
