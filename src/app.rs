@@ -10,7 +10,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{CursorGrabMode, WindowId};
 
-use crate::resources::{Camera, MeshRegistry, Renderer, ShaderProgram};
+use crate::resources::{Camera, Config, MeshRegistry, Renderer, ShaderProgram};
 use crate::systems::{InitSystem, RenderSystem};
 use crate::window_manager::WindowManager;
 use glam::Vec3;
@@ -32,6 +32,7 @@ pub struct App {
 
 impl App {
     pub fn new(template: ConfigTemplateBuilder, display_builder: DisplayBuilder) -> Self {
+        let config = Config::new();
         Self {
             window_manager: WindowManager::new(template, display_builder),
             exit_state: Ok(()),
@@ -43,7 +44,7 @@ impl App {
             init_system: InitSystem::new(),
             render_system: RenderSystem::new(),
             input_state: InputState::new(),
-            input_system: InputSystem::new(),
+            input_system: InputSystem::new(config),
             cursor_grabbed: true,
         }
     }

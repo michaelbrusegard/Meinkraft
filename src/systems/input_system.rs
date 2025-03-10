@@ -1,20 +1,18 @@
 use crate::resources::InputState;
+use crate::resources::{Config, GameAction};
 use glam::Vec3;
 use hecs::World;
-use winit::keyboard::{Key, NamedKey};
 
 pub struct InputSystem {
-    move_speed: f32,
-    mouse_sensitivity: f32,
+    config: Config,
     yaw: f32,
     pitch: f32,
 }
 
 impl InputSystem {
-    pub fn new() -> Self {
+    pub fn new(config: Config) -> Self {
         Self {
-            move_speed: 0.1,
-            mouse_sensitivity: 0.003,
+            config,
             yaw: -90.0_f32.to_radians(),
             pitch: 0.0,
         }
@@ -33,8 +31,8 @@ impl InputSystem {
     }
 
     fn handle_mouse_look(&mut self, camera: &mut crate::resources::Camera, dx: f32, dy: f32) {
-        self.yaw += dx * self.mouse_sensitivity;
-        self.pitch -= dy * self.mouse_sensitivity;
+        self.yaw += dx * self.config.mouse_sensitivity;
+        self.pitch -= dy * self.config.mouse_sensitivity;
 
         self.pitch = self
             .pitch
@@ -57,27 +55,27 @@ impl InputSystem {
         let forward_horizontal = Vec3::new(forward.x, 0.0, forward.z).normalize();
         let right = forward.cross(camera.up).normalize();
 
-        if input_state.is_key_pressed(&Key::Character("w".into())) {
+        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveForward).unwrap()) {
             movement += forward_horizontal;
         }
-        if input_state.is_key_pressed(&Key::Character("s".into())) {
+        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveBackward).unwrap()) {
             movement -= forward_horizontal;
         }
-        if input_state.is_key_pressed(&Key::Character("a".into())) {
+        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveLeft).unwrap()) {
             movement -= right;
         }
-        if input_state.is_key_pressed(&Key::Character("d".into())) {
+        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveRight).unwrap()) {
             movement += right;
         }
-        if input_state.is_key_pressed(&Key::Named(NamedKey::Space)) {
+        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveUp).unwrap()) {
             movement += Vec3::new(0.0, 1.0, 0.0);
         }
-        if input_state.is_key_pressed(&Key::Named(NamedKey::Shift)) {
+        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveDown).unwrap()) {
             movement -= Vec3::new(0.0, 1.0, 0.0);
         }
 
         if movement != Vec3::ZERO {
-            movement = movement.normalize() * self.move_speed;
+            movement = movement.normalize() * self.config.move_speed;
 
             camera.position += movement;
             camera.target += movement;
@@ -87,6 +85,6 @@ impl InputSystem {
 
 impl Default for InputSystem {
     fn default() -> Self {
-        Self::new()
+        Self::new(Config::default())
     }
 }
