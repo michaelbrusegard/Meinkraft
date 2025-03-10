@@ -138,7 +138,7 @@ impl ApplicationHandler for App {
                             .insert(event.logical_key.clone());
                     }
                     ElementState::Released => {
-                        self.input_state.pressed_keys.remove(&event.logical_key);
+                        self.input_state.remove_key(&event.logical_key);
                     }
                 }
 

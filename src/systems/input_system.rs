@@ -57,24 +57,16 @@ impl InputSystem {
         let forward_horizontal = Vec3::new(forward.x, 0.0, forward.z).normalize();
         let right = forward.cross(camera.up).normalize();
 
-        if input_state.is_key_pressed(&Key::Character("w".into()))
-            || input_state.is_key_pressed(&Key::Character("W".into()))
-        {
+        if input_state.is_key_pressed(&Key::Character("w".into())) {
             movement += forward_horizontal;
         }
-        if input_state.is_key_pressed(&Key::Character("s".into()))
-            || input_state.is_key_pressed(&Key::Character("S".into()))
-        {
+        if input_state.is_key_pressed(&Key::Character("s".into())) {
             movement -= forward_horizontal;
         }
-        if input_state.is_key_pressed(&Key::Character("a".into()))
-            || input_state.is_key_pressed(&Key::Character("A".into()))
-        {
+        if input_state.is_key_pressed(&Key::Character("a".into())) {
             movement -= right;
         }
-        if input_state.is_key_pressed(&Key::Character("d".into()))
-            || input_state.is_key_pressed(&Key::Character("D".into()))
-        {
+        if input_state.is_key_pressed(&Key::Character("d".into())) {
             movement += right;
         }
         if input_state.is_key_pressed(&Key::Named(NamedKey::Space)) {
