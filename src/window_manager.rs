@@ -1,3 +1,4 @@
+use crate::resources::{Camera, Renderer};
 use glutin::config::{Config, ConfigTemplateBuilder, GetGlConfig};
 use glutin::context::{
     ContextApi, ContextAttributesBuilder, NotCurrentContext, PossiblyCurrentContext, Version,
@@ -11,7 +12,7 @@ use std::error::Error;
 use std::ffi::CString;
 use std::num::NonZeroU32;
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{Window, WindowAttributes};
+use winit::window::{CursorGrabMode, Window, WindowAttributes};
 
 pub enum GlDisplayCreationState {
     Builder(DisplayBuilder),
@@ -178,5 +179,50 @@ impl WindowManager {
                 }
             })
             .unwrap()
+    }
+
+    pub fn initialize_window(&mut self) {
+        if let Some(window) = self.state.as_ref().map(|s| &s.window) {
+            let _ = window.set_cursor_grab(CursorGrabMode::Locked);
+            window.set_cursor_visible(false);
+        }
+    }
+
+    pub fn get_dimensions(&self) -> Option<(u32, u32)> {
+        self.state.as_ref().map(|s| {
+            let size = s.window.inner_size();
+            (size.width, size.height)
+        })
+    }
+
+    pub fn get_window(&self) -> Option<&Window> {
+        self.state.as_ref().map(|s| &s.window)
+    }
+
+    pub fn set_cursor_grabbed(&mut self, grab: bool) {
+        if let Some(state) = &self.state {
+            if grab {
+                let _ = state.window.set_cursor_grab(CursorGrabMode::Locked);
+                state.window.set_cursor_visible(false);
+            } else {
+                let _ = state.window.set_cursor_grab(CursorGrabMode::None);
+                state.window.set_cursor_visible(true);
+            }
+        }
+    }
+
+    pub fn handle_resize(
+        &mut self,
+        width: u32,
+        height: u32,
+        renderer: Option<&Renderer>,
+        camera: Option<&mut Camera>,
+    ) {
+        self.resize(width, height);
+
+        if let (Some(renderer), Some(camera)) = (renderer, camera) {
+            renderer.resize(width as i32, height as i32);
+            camera.update_aspect_ratio(width as f32, height as f32);
+        }
     }
 }

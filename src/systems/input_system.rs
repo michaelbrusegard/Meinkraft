@@ -1,10 +1,9 @@
-use crate::resources::InputState;
-use crate::resources::{Config, GameAction};
+use crate::resources::{Config, GameAction, InputState};
+use crate::window_manager::WindowManager;
 use glam::Vec3;
 use hecs::World;
 use winit::event::{DeviceEvent, ElementState, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
-use winit::window::{CursorGrabMode, Window};
 
 pub struct InputSystem {
     config: Config,
@@ -39,7 +38,7 @@ impl InputSystem {
         &mut self,
         event: &WindowEvent,
         input_state: &mut InputState,
-        window: Option<&Window>,
+        window_manager: &mut WindowManager,
     ) -> bool {
         match event {
             WindowEvent::KeyboardInput { event, .. } => {
@@ -48,7 +47,7 @@ impl InputSystem {
                         input_state.pressed_keys.insert(event.logical_key.clone());
 
                         if let Key::Named(NamedKey::Escape) = event.logical_key {
-                            self.release_cursor(window);
+                            self.release_cursor(window_manager);
                         }
                     }
                     ElementState::Released => {
@@ -63,7 +62,7 @@ impl InputSystem {
                         input_state.pressed_mouse_buttons.insert(*button);
 
                         if !self.cursor_grabbed {
-                            self.grab_cursor(window);
+                            self.grab_cursor(window_manager);
                         }
                     }
                     ElementState::Released => {
@@ -90,23 +89,17 @@ impl InputSystem {
         self.cursor_grabbed
     }
 
-    pub fn grab_cursor(&mut self, window: Option<&Window>) {
-        if let Some(window) = window {
-            if !self.cursor_grabbed {
-                self.cursor_grabbed = true;
-                let _ = window.set_cursor_grab(CursorGrabMode::Locked);
-                window.set_cursor_visible(false);
-            }
+    pub fn grab_cursor(&mut self, window_manager: &mut WindowManager) {
+        if !self.cursor_grabbed {
+            self.cursor_grabbed = true;
+            window_manager.set_cursor_grabbed(true);
         }
     }
 
-    pub fn release_cursor(&mut self, window: Option<&Window>) {
-        if let Some(window) = window {
-            if self.cursor_grabbed {
-                self.cursor_grabbed = false;
-                let _ = window.set_cursor_grab(CursorGrabMode::None);
-                window.set_cursor_visible(true);
-            }
+    pub fn release_cursor(&mut self, window_manager: &mut WindowManager) {
+        if self.cursor_grabbed {
+            self.cursor_grabbed = false;
+            window_manager.set_cursor_grabbed(false);
         }
     }
 

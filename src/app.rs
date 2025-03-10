@@ -7,7 +7,7 @@ use std::error::Error;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{CursorGrabMode, WindowId};
+use winit::window::WindowId;
 
 use crate::resources::{Camera, Config, MeshRegistry, Renderer, ShaderProgram};
 use crate::systems::{InitSystem, RenderSystem};
@@ -51,11 +51,13 @@ impl App {
         let mut renderer = Renderer::new(gl);
         let shader_program = ShaderProgram::new(&renderer.gl);
 
+        let (width, height) = self.window_manager.get_dimensions().unwrap_or((800, 600));
+
         let camera = Camera::new(
-            Vec3::new(0.0, 0.0, 6.0), // Camera position
-            Vec3::new(0.0, 0.0, 0.0), // Look at point
-            Vec3::new(0.0, 1.0, 0.0), // Up vector
-            800.0 / 600.0,            // Aspect ratio
+            Vec3::new(0.0, 0.0, 6.0),     // Camera position
+            Vec3::new(0.0, 0.0, 0.0),     // Look at point
+            Vec3::new(0.0, 1.0, 0.0),     // Up vector
+            width as f32 / height as f32, // Aspect ratio
         );
 
         let mut world = World::new();
@@ -69,11 +71,7 @@ impl App {
         self.mesh_registry = Some(mesh_registry);
         self.renderer = Some(renderer);
         self.shader_program = Some(shader_program);
-
-        if let Some(window) = self.window_manager.state.as_ref().map(|s| &s.window) {
-            let _ = window.set_cursor_grab(CursorGrabMode::Locked);
-            window.set_cursor_visible(false);
-        }
+        self.window_manager.initialize_window();
     }
 }
 
@@ -99,20 +97,20 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) if size.width != 0 && size.height != 0 => {
-                self.window_manager.resize(size.width, size.height);
-
-                if let (Some(renderer), Some(camera)) =
-                    (self.renderer.as_ref(), self.camera.as_mut())
-                {
-                    renderer.resize(size.width as i32, size.height as i32);
-                    camera.update_aspect_ratio(size.width as f32, size.height as f32);
-                }
+                self.window_manager.handle_resize(
+                    size.width,
+                    size.height,
+                    self.renderer.as_ref(),
+                    self.camera.as_mut(),
+                );
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             _ => {
-                let window = self.window_manager.state.as_ref().map(|s| &s.window);
-                self.input_system
-                    .handle_window_event(&event, &mut self.input_state, window);
+                self.input_system.handle_window_event(
+                    &event,
+                    &mut self.input_state,
+                    &mut self.window_manager,
+                );
             }
         }
     }
