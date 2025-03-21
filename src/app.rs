@@ -1,27 +1,20 @@
 use crate::resources::InputState;
-use crate::systems::InputSystem;
+use crate::systems::{InputSystem, RenderSystem};
 use glutin::config::ConfigTemplateBuilder;
 use glutin_winit::DisplayBuilder;
-use hecs::World;
 use std::error::Error;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
-use crate::resources::{Camera, Config, MeshRegistry, Renderer, ShaderProgram};
-use crate::systems::{InitSystem, RenderSystem};
+use crate::game_state::GameState;
+use crate::resources::Config;
 use crate::window_manager::WindowManager;
-use glam::Vec3;
 
 pub struct App {
     window_manager: WindowManager,
-    world: Option<World>,
-    camera: Option<Camera>,
-    mesh_registry: Option<MeshRegistry>,
-    renderer: Option<Renderer>,
-    shader_program: Option<ShaderProgram>,
-    init_system: InitSystem,
+    game_state: Option<GameState>,
     render_system: RenderSystem,
     input_state: InputState,
     input_system: InputSystem,
@@ -34,12 +27,7 @@ impl App {
         Self {
             window_manager: WindowManager::new(template, display_builder),
             exit_state: Ok(()),
-            world: None,
-            camera: None,
-            mesh_registry: None,
-            renderer: None,
-            shader_program: None,
-            init_system: InitSystem::new(),
+            game_state: None,
             render_system: RenderSystem::new(),
             input_state: InputState::new(),
             input_system: InputSystem::new(config),
@@ -48,29 +36,9 @@ impl App {
 
     fn initialize_game(&mut self) {
         let gl = self.window_manager.create_gl();
-        let mut renderer = Renderer::new(gl);
-        let shader_program = ShaderProgram::new(&renderer.gl);
-
         let (width, height) = self.window_manager.get_dimensions().unwrap_or((800, 600));
 
-        let camera = Camera::new(
-            Vec3::new(0.0, 0.0, 6.0),     // Camera position
-            Vec3::new(0.0, 0.0, 0.0),     // Look at point
-            Vec3::new(0.0, 1.0, 0.0),     // Up vector
-            width as f32 / height as f32, // Aspect ratio
-        );
-
-        let mut world = World::new();
-        let mut mesh_registry = MeshRegistry::new();
-
-        self.init_system
-            .initialize(&mut world, &mut mesh_registry, &mut renderer);
-
-        self.world = Some(world);
-        self.camera = Some(camera);
-        self.mesh_registry = Some(mesh_registry);
-        self.renderer = Some(renderer);
-        self.shader_program = Some(shader_program);
+        self.game_state = Some(GameState::new(gl, width, height));
         self.window_manager.initialize_window();
     }
 }
@@ -79,7 +47,7 @@ impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         match self.window_manager.resume(event_loop) {
             Ok(()) => {
-                if self.world.is_none() {
+                if self.game_state.is_none() {
                     self.initialize_game();
                 }
             }
@@ -97,12 +65,10 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::Resized(size) if size.width != 0 && size.height != 0 => {
-                self.window_manager.handle_resize(
-                    size.width,
-                    size.height,
-                    self.renderer.as_ref(),
-                    self.camera.as_mut(),
-                );
+                if let Some(game_state) = &mut self.game_state {
+                    self.window_manager.resize(size.width, size.height);
+                    game_state.handle_resize(size.width, size.height);
+                }
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             _ => {
@@ -130,18 +96,20 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let (Some(world), Some(camera)) = (self.world.as_mut(), self.camera.as_mut()) {
-            self.input_system.update(world, &self.input_state, camera);
-        }
+        if let Some(game_state) = &mut self.game_state {
+            self.input_system.update(
+                &mut game_state.world,
+                &self.input_state,
+                &mut game_state.camera,
+            );
 
-        if let (Some(world), Some(camera), Some(renderer), Some(shader_program)) = (
-            self.world.as_ref(),
-            self.camera.as_ref(),
-            self.renderer.as_ref(),
-            self.shader_program.as_ref(),
-        ) {
-            self.render_system
-                .render(world, camera, renderer, shader_program);
+            self.render_system.render(
+                &game_state.world,
+                &game_state.camera,
+                &game_state.renderer,
+                &game_state.shader_program,
+            );
+
             self.window_manager.swap_buffers();
         }
 

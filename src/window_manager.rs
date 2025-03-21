@@ -1,4 +1,3 @@
-use crate::resources::{Camera, Renderer};
 use glutin::config::{Config, ConfigTemplateBuilder, GetGlConfig};
 use glutin::context::{
     ContextApi, ContextAttributesBuilder, NotCurrentContext, PossiblyCurrentContext, Version,
@@ -208,21 +207,6 @@ impl WindowManager {
                 let _ = state.window.set_cursor_grab(CursorGrabMode::None);
                 state.window.set_cursor_visible(true);
             }
-        }
-    }
-
-    pub fn handle_resize(
-        &mut self,
-        width: u32,
-        height: u32,
-        renderer: Option<&Renderer>,
-        camera: Option<&mut Camera>,
-    ) {
-        self.resize(width, height);
-
-        if let (Some(renderer), Some(camera)) = (renderer, camera) {
-            renderer.resize(width as i32, height as i32);
-            camera.update_aspect_ratio(width as f32, height as f32);
         }
     }
 }

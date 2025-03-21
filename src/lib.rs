@@ -1,4 +1,5 @@
 pub mod app;
+mod game_state;
 mod gl;
 mod window_manager;
 
