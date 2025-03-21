@@ -25,7 +25,6 @@ impl InputSystem {
     ) {
         let (mouse_dx, mouse_dy) = input_state.mouse_delta;
         self.handle_mouse_look(camera, mouse_dx, mouse_dy);
-
         self.handle_movement(input_state, camera);
     }
 

@@ -1,7 +1,6 @@
 use crate::game_state::GameState;
 use crate::input_manager::InputManager;
 use crate::resources::Config;
-use crate::resources::InputState;
 use crate::systems::{InputSystem, RenderSystem};
 use crate::window_manager::WindowManager;
 use glutin::config::ConfigTemplateBuilder;
@@ -14,10 +13,9 @@ use winit::window::WindowId;
 
 pub struct App {
     window_manager: WindowManager,
+    input_manager: InputManager,
     game_state: Option<GameState>,
     render_system: RenderSystem,
-    input_state: InputState,
-    input_manager: InputManager,
     input_system: InputSystem,
     pub exit_state: Result<(), Box<dyn Error>>,
 }
@@ -30,7 +28,6 @@ impl App {
             exit_state: Ok(()),
             game_state: None,
             render_system: RenderSystem::new(),
-            input_state: InputState::new(),
             input_system: InputSystem::new(config),
             input_manager: InputManager::new(),
         }
@@ -74,11 +71,13 @@ impl ApplicationHandler for App {
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             _ => {
-                self.input_manager.handle_window_event(
-                    &event,
-                    &mut self.input_state,
-                    &mut self.window_manager,
-                );
+                if let Some(game_state) = &mut self.game_state {
+                    self.input_manager.handle_window_event(
+                        &event,
+                        &mut game_state.input_state,
+                        &mut self.window_manager,
+                    );
+                }
             }
         }
     }
@@ -89,8 +88,10 @@ impl ApplicationHandler for App {
         _device_id: winit::event::DeviceId,
         event: DeviceEvent,
     ) {
-        self.input_manager
-            .handle_device_event(&event, &mut self.input_state);
+        if let Some(game_state) = &mut self.game_state {
+            self.input_manager
+                .handle_device_event(&event, &mut game_state.input_state);
+        }
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
@@ -101,7 +102,7 @@ impl ApplicationHandler for App {
         if let Some(game_state) = &mut self.game_state {
             self.input_system.update(
                 &mut game_state.world,
-                &self.input_state,
+                &game_state.input_state,
                 &mut game_state.camera,
             );
 
@@ -112,9 +113,8 @@ impl ApplicationHandler for App {
                 &game_state.shader_program,
             );
 
+            game_state.input_state.reset_frame_state();
             self.window_manager.swap_buffers();
         }
-
-        self.input_state.reset_frame_state();
     }
 }
