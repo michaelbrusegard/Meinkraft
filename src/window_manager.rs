@@ -11,7 +11,7 @@ use std::error::Error;
 use std::ffi::CString;
 use std::num::NonZeroU32;
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{CursorGrabMode, Window, WindowAttributes};
+use winit::window::{CursorGrabMode, Window};
 
 pub enum GlDisplayCreationState {
     Builder(DisplayBuilder),
@@ -31,7 +31,9 @@ pub struct WindowManager {
 }
 
 impl WindowManager {
-    pub fn new(template: ConfigTemplateBuilder, display_builder: DisplayBuilder) -> Self {
+    pub fn new(template: ConfigTemplateBuilder) -> Self {
+        let display_builder = DisplayBuilder::new()
+            .with_window_attributes(Some(Window::default_attributes().with_title("Meinkraft")));
         Self {
             template,
             gl_display: GlDisplayCreationState::Builder(display_builder),
@@ -59,11 +61,8 @@ impl WindowManager {
             }
             GlDisplayCreationState::Init => {
                 let gl_config = self.gl_context.as_ref().unwrap().config();
-                let window = glutin_winit::finalize_window(
-                    event_loop,
-                    Self::window_attributes(),
-                    &gl_config,
-                )?;
+                let window =
+                    glutin_winit::finalize_window(event_loop, Default::default(), &gl_config)?;
                 (window, gl_config)
             }
         };
@@ -162,10 +161,6 @@ impl WindowManager {
                 .create_context(gl_config, &context_attributes)
                 .expect("failed to create OpenGL 4.1 context")
         }
-    }
-
-    fn window_attributes() -> WindowAttributes {
-        Window::default_attributes().with_title("Meinkraft")
     }
 
     fn gl_config_picker<'a>(configs: Box<dyn Iterator<Item = Config> + 'a>) -> Config {

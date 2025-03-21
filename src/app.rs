@@ -4,7 +4,6 @@ use crate::resources::Config;
 use crate::systems::{InputSystem, RenderSystem};
 use crate::window_manager::WindowManager;
 use glutin::config::ConfigTemplateBuilder;
-use glutin_winit::DisplayBuilder;
 use std::error::Error;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, WindowEvent};
@@ -21,10 +20,10 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(template: ConfigTemplateBuilder, display_builder: DisplayBuilder) -> Self {
+    pub fn new(template: ConfigTemplateBuilder) -> Self {
         let config = Config::new();
         Self {
-            window_manager: WindowManager::new(template, display_builder),
+            window_manager: WindowManager::new(template),
             exit_state: Ok(()),
             game_state: None,
             render_system: RenderSystem::new(),
