@@ -1,8 +1,8 @@
 pub mod app;
 mod game_state;
 mod gl;
-mod input_manager;
-mod window_manager;
+mod input;
+mod window;
 
 pub mod components {
     mod block;

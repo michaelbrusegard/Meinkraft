@@ -1,8 +1,8 @@
 use crate::game_state::GameState;
-use crate::input_manager::InputManager;
+use crate::input::InputManager;
 use crate::resources::Config;
 use crate::systems::{InputSystem, RenderSystem};
-use crate::window_manager::WindowManager;
+use crate::window::WindowManager;
 use glutin::config::ConfigTemplateBuilder;
 use std::error::Error;
 use winit::application::ApplicationHandler;
