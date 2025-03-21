@@ -22,6 +22,7 @@ pub mod resources {
     mod mesh;
     mod renderer;
     mod shader_program;
+    mod world_builder;
 
     pub use camera::Camera;
     pub use config::{Config, GameAction};
@@ -29,6 +30,7 @@ pub mod resources {
     pub use mesh::{Mesh, MeshRegistry};
     pub use renderer::Renderer;
     pub use shader_program::ShaderProgram;
+    pub use world_builder::WorldBuilder;
 }
 
 pub mod systems {
@@ -37,12 +39,4 @@ pub mod systems {
 
     pub use input_system::InputSystem;
     pub use render_system::RenderSystem;
-}
-
-pub mod world {
-    mod resource_loader;
-    mod world_builder;
-
-    pub use resource_loader::ResourceLoader;
-    pub use world_builder::WorldBuilder;
 }

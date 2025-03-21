@@ -1,4 +1,5 @@
 use crate::gl;
+use crate::resources::MeshRegistry;
 use std::collections::HashMap;
 
 pub struct Renderer {
@@ -20,6 +21,12 @@ impl Renderer {
             vaos: HashMap::new(),
             vbos: HashMap::new(),
             ebos: HashMap::new(),
+        }
+    }
+
+    pub fn initialize_mesh_resources(&mut self, mesh_registry: &MeshRegistry) {
+        for (mesh_id, mesh) in mesh_registry.meshes.iter().enumerate() {
+            self.setup_mesh_buffers(mesh_id, &mesh.vertices, &mesh.indices);
         }
     }
 

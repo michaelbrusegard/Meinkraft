@@ -18,7 +18,7 @@ impl MeshRegistry {
         self.meshes.len() - 1
     }
 
-    pub fn register_voxel_mesh(&mut self) -> usize {
+    pub fn register_block_mesh(&mut self) -> usize {
         let vertices: Vec<f32> = vec![
             // Front face
             -0.5, -0.5, 0.5, // 0
