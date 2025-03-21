@@ -1,7 +1,7 @@
 pub mod app;
-mod game_state;
 mod gl;
 mod input;
+mod state;
 mod window;
 
 pub mod components {

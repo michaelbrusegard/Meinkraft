@@ -1,9 +1,10 @@
-use crate::resources::{Camera, InputState, MeshRegistry, Renderer, ShaderProgram};
+use crate::resources::{Camera, Config, InputState, MeshRegistry, Renderer, ShaderProgram};
 use crate::systems::InitSystem;
 use glam::Vec3;
 use hecs::World;
 
 pub struct GameState {
+    pub config: Config,
     pub world: World,
     pub camera: Camera,
     pub renderer: Renderer,
@@ -30,6 +31,7 @@ impl GameState {
         init_system.initialize(&mut world, &mut mesh_registry, &mut renderer);
 
         Self {
+            config: Config::new(),
             world,
             camera,
             renderer,

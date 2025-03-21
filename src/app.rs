@@ -1,6 +1,5 @@
-use crate::game_state::GameState;
 use crate::input::InputManager;
-use crate::resources::Config;
+use crate::state::GameState;
 use crate::systems::{InputSystem, RenderSystem};
 use crate::window::WindowManager;
 use glutin::config::ConfigTemplateBuilder;
@@ -21,13 +20,12 @@ pub struct App {
 
 impl App {
     pub fn new(template: ConfigTemplateBuilder) -> Self {
-        let config = Config::new();
         Self {
             window_manager: WindowManager::new(template),
             exit_state: Ok(()),
             game_state: None,
             render_system: RenderSystem::new(),
-            input_system: InputSystem::new(config),
+            input_system: InputSystem::new(),
             input_manager: InputManager::new(),
         }
     }
@@ -100,6 +98,7 @@ impl ApplicationHandler for App {
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(game_state) = &mut self.game_state {
             self.input_system.update(
+                &game_state.config,
                 &mut game_state.world,
                 &game_state.input_state,
                 &mut game_state.camera,

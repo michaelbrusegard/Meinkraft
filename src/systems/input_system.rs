@@ -3,15 +3,13 @@ use glam::Vec3;
 use hecs::World;
 
 pub struct InputSystem {
-    config: Config,
     yaw: f32,
     pitch: f32,
 }
 
 impl InputSystem {
-    pub fn new(config: Config) -> Self {
+    pub fn new() -> Self {
         Self {
-            config,
             yaw: -90.0_f32.to_radians(),
             pitch: 0.0,
         }
@@ -19,18 +17,25 @@ impl InputSystem {
 
     pub fn update(
         &mut self,
+        config: &Config,
         _world: &mut World,
         input_state: &InputState,
         camera: &mut crate::resources::Camera,
     ) {
         let (mouse_dx, mouse_dy) = input_state.mouse_delta;
-        self.handle_mouse_look(camera, mouse_dx, mouse_dy);
-        self.handle_movement(input_state, camera);
+        self.handle_mouse_look(config, camera, mouse_dx, mouse_dy);
+        Self::handle_movement(config, input_state, camera);
     }
 
-    fn handle_mouse_look(&mut self, camera: &mut crate::resources::Camera, dx: f32, dy: f32) {
-        self.yaw += dx * self.config.mouse_sensitivity;
-        self.pitch -= dy * self.config.mouse_sensitivity;
+    fn handle_mouse_look(
+        &mut self,
+        config: &Config,
+        camera: &mut crate::resources::Camera,
+        dx: f32,
+        dy: f32,
+    ) {
+        self.yaw += dx * config.mouse_sensitivity;
+        self.pitch -= dy * config.mouse_sensitivity;
 
         self.pitch = self
             .pitch
@@ -46,34 +51,38 @@ impl InputSystem {
         camera.target = camera.position + forward;
     }
 
-    fn handle_movement(&self, input_state: &InputState, camera: &mut crate::resources::Camera) {
+    fn handle_movement(
+        config: &Config,
+        input_state: &InputState,
+        camera: &mut crate::resources::Camera,
+    ) {
         let mut movement = Vec3::ZERO;
 
         let forward = (camera.target - camera.position).normalize();
         let forward_horizontal = Vec3::new(forward.x, 0.0, forward.z).normalize();
         let right = forward.cross(camera.up).normalize();
 
-        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveForward).unwrap()) {
+        if input_state.is_key_pressed(config.get_key(&GameAction::MoveForward).unwrap()) {
             movement += forward_horizontal;
         }
-        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveBackward).unwrap()) {
+        if input_state.is_key_pressed(config.get_key(&GameAction::MoveBackward).unwrap()) {
             movement -= forward_horizontal;
         }
-        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveLeft).unwrap()) {
+        if input_state.is_key_pressed(config.get_key(&GameAction::MoveLeft).unwrap()) {
             movement -= right;
         }
-        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveRight).unwrap()) {
+        if input_state.is_key_pressed(config.get_key(&GameAction::MoveRight).unwrap()) {
             movement += right;
         }
-        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveUp).unwrap()) {
+        if input_state.is_key_pressed(config.get_key(&GameAction::MoveUp).unwrap()) {
             movement += Vec3::new(0.0, 1.0, 0.0);
         }
-        if input_state.is_key_pressed(self.config.get_key(&GameAction::MoveDown).unwrap()) {
+        if input_state.is_key_pressed(config.get_key(&GameAction::MoveDown).unwrap()) {
             movement -= Vec3::new(0.0, 1.0, 0.0);
         }
 
         if movement != Vec3::ZERO {
-            movement = movement.normalize() * self.config.move_speed;
+            movement = movement.normalize() * config.move_speed;
 
             camera.position += movement;
             camera.target += movement;
@@ -83,6 +92,6 @@ impl InputSystem {
 
 impl Default for InputSystem {
     fn default() -> Self {
-        Self::new(Config::default())
+        Self::new()
     }
 }
