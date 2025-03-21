@@ -32,11 +32,17 @@ pub mod resources {
 }
 
 pub mod systems {
-    mod init_system;
     mod input_system;
     mod render_system;
 
-    pub use init_system::InitSystem;
     pub use input_system::InputSystem;
     pub use render_system::RenderSystem;
+}
+
+pub mod world {
+    mod resource_loader;
+    mod world_builder;
+
+    pub use resource_loader::ResourceLoader;
+    pub use world_builder::WorldBuilder;
 }

@@ -33,10 +33,6 @@ impl App {
         let (width, height) = self.window_manager.get_dimensions().unwrap_or((800, 600));
 
         self.game_state = Some(GameState::new(gl, width, height));
-        if let Some(game_state) = &mut self.game_state {
-            self.system_scheduler.initialize(game_state);
-        }
-
         self.window_manager.initialize_window();
     }
 }
