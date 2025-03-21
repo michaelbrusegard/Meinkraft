@@ -1,6 +1,6 @@
 use crate::input::InputManager;
 use crate::state::GameState;
-use crate::systems::{InputSystem, RenderSystem};
+use crate::systems::{InitSystem, InputSystem, RenderSystem};
 use crate::window::WindowManager;
 use glutin::config::ConfigTemplateBuilder;
 use std::error::Error;
@@ -15,6 +15,7 @@ pub struct App {
     game_state: Option<GameState>,
     render_system: RenderSystem,
     input_system: InputSystem,
+    init_system: InitSystem,
     pub exit_state: Result<(), Box<dyn Error>>,
 }
 
@@ -27,6 +28,7 @@ impl App {
             render_system: RenderSystem::new(),
             input_system: InputSystem::new(),
             input_manager: InputManager::new(),
+            init_system: InitSystem::new(),
         }
     }
 
@@ -35,6 +37,14 @@ impl App {
         let (width, height) = self.window_manager.get_dimensions().unwrap_or((800, 600));
 
         self.game_state = Some(GameState::new(gl, width, height));
+        if let Some(game_state) = &mut self.game_state {
+            self.init_system.initialize(
+                &mut game_state.world,
+                &mut game_state.mesh_registry,
+                &mut game_state.renderer,
+            );
+        }
+
         self.window_manager.initialize_window();
     }
 }

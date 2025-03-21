@@ -1,5 +1,4 @@
 use crate::resources::{Camera, Config, InputState, MeshRegistry, Renderer, ShaderProgram};
-use crate::systems::InitSystem;
 use glam::Vec3;
 use hecs::World;
 
@@ -9,14 +8,14 @@ pub struct GameState {
     pub camera: Camera,
     pub renderer: Renderer,
     pub shader_program: ShaderProgram,
+    pub mesh_registry: MeshRegistry,
     pub input_state: InputState,
 }
 
 impl GameState {
     pub fn new(gl: crate::gl::Gl, width: u32, height: u32) -> Self {
-        let mut renderer = Renderer::new(gl);
+        let renderer = Renderer::new(gl);
         let shader_program = ShaderProgram::new(&renderer.gl);
-
         let camera = Camera::new(
             Vec3::new(0.0, 0.0, 6.0),
             Vec3::new(0.0, 0.0, 0.0),
@@ -24,19 +23,14 @@ impl GameState {
             width as f32 / height as f32,
         );
 
-        let mut world = World::new();
-        let mut mesh_registry = MeshRegistry::new();
-
-        let init_system = InitSystem::new();
-        init_system.initialize(&mut world, &mut mesh_registry, &mut renderer);
-
         Self {
             config: Config::new(),
-            world,
+            world: World::new(),
+            mesh_registry: MeshRegistry::new(),
+            input_state: InputState::new(),
             camera,
             renderer,
             shader_program,
-            input_state: InputState::new(),
         }
     }
 
