@@ -1,6 +1,7 @@
 pub mod app;
 mod game_state;
 mod gl;
+mod input_manager;
 mod window_manager;
 
 pub mod components {

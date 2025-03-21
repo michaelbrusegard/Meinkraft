@@ -194,10 +194,6 @@ impl WindowManager {
         })
     }
 
-    pub fn get_window(&self) -> Option<&Window> {
-        self.state.as_ref().map(|s| &s.window)
-    }
-
     pub fn set_cursor_grabbed(&mut self, grab: bool) {
         if let Some(state) = &self.state {
             if grab {

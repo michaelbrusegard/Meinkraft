@@ -1,5 +1,9 @@
+use crate::game_state::GameState;
+use crate::input_manager::InputManager;
+use crate::resources::Config;
 use crate::resources::InputState;
 use crate::systems::{InputSystem, RenderSystem};
+use crate::window_manager::WindowManager;
 use glutin::config::ConfigTemplateBuilder;
 use glutin_winit::DisplayBuilder;
 use std::error::Error;
@@ -8,15 +12,12 @@ use winit::event::{DeviceEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
-use crate::game_state::GameState;
-use crate::resources::Config;
-use crate::window_manager::WindowManager;
-
 pub struct App {
     window_manager: WindowManager,
     game_state: Option<GameState>,
     render_system: RenderSystem,
     input_state: InputState,
+    input_manager: InputManager,
     input_system: InputSystem,
     pub exit_state: Result<(), Box<dyn Error>>,
 }
@@ -31,6 +32,7 @@ impl App {
             render_system: RenderSystem::new(),
             input_state: InputState::new(),
             input_system: InputSystem::new(config),
+            input_manager: InputManager::new(),
         }
     }
 
@@ -72,7 +74,7 @@ impl ApplicationHandler for App {
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             _ => {
-                self.input_system.handle_window_event(
+                self.input_manager.handle_window_event(
                     &event,
                     &mut self.input_state,
                     &mut self.window_manager,
@@ -87,7 +89,7 @@ impl ApplicationHandler for App {
         _device_id: winit::event::DeviceId,
         event: DeviceEvent,
     ) {
-        self.input_system
+        self.input_manager
             .handle_device_event(&event, &mut self.input_state);
     }
 

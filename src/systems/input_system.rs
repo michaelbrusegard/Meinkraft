@@ -1,15 +1,11 @@
 use crate::resources::{Config, GameAction, InputState};
-use crate::window_manager::WindowManager;
 use glam::Vec3;
 use hecs::World;
-use winit::event::{DeviceEvent, ElementState, WindowEvent};
-use winit::keyboard::{Key, NamedKey};
 
 pub struct InputSystem {
     config: Config,
     yaw: f32,
     pitch: f32,
-    cursor_grabbed: bool,
 }
 
 impl InputSystem {
@@ -18,7 +14,6 @@ impl InputSystem {
             config,
             yaw: -90.0_f32.to_radians(),
             pitch: 0.0,
-            cursor_grabbed: true,
         }
     }
 
@@ -32,75 +27,6 @@ impl InputSystem {
         self.handle_mouse_look(camera, mouse_dx, mouse_dy);
 
         self.handle_movement(input_state, camera);
-    }
-
-    pub fn handle_window_event(
-        &mut self,
-        event: &WindowEvent,
-        input_state: &mut InputState,
-        window_manager: &mut WindowManager,
-    ) -> bool {
-        match event {
-            WindowEvent::KeyboardInput { event, .. } => {
-                match event.state {
-                    ElementState::Pressed => {
-                        input_state.pressed_keys.insert(event.logical_key.clone());
-
-                        if let Key::Named(NamedKey::Escape) = event.logical_key {
-                            self.release_cursor(window_manager);
-                        }
-                    }
-                    ElementState::Released => {
-                        input_state.remove_key(&event.logical_key);
-                    }
-                }
-                true
-            }
-            WindowEvent::MouseInput { state, button, .. } => {
-                match state {
-                    ElementState::Pressed => {
-                        input_state.pressed_mouse_buttons.insert(*button);
-
-                        if !self.cursor_grabbed {
-                            self.grab_cursor(window_manager);
-                        }
-                    }
-                    ElementState::Released => {
-                        input_state.pressed_mouse_buttons.remove(button);
-                    }
-                }
-                true
-            }
-            _ => false,
-        }
-    }
-
-    pub fn handle_device_event(&mut self, event: &DeviceEvent, input_state: &mut InputState) {
-        if !self.cursor_grabbed {
-            return;
-        }
-
-        if let DeviceEvent::MouseMotion { delta } = event {
-            input_state.mouse_delta = (delta.0 as f32, delta.1 as f32);
-        }
-    }
-
-    pub fn is_cursor_grabbed(&self) -> bool {
-        self.cursor_grabbed
-    }
-
-    pub fn grab_cursor(&mut self, window_manager: &mut WindowManager) {
-        if !self.cursor_grabbed {
-            self.cursor_grabbed = true;
-            window_manager.set_cursor_grabbed(true);
-        }
-    }
-
-    pub fn release_cursor(&mut self, window_manager: &mut WindowManager) {
-        if self.cursor_grabbed {
-            self.cursor_grabbed = false;
-            window_manager.set_cursor_grabbed(false);
-        }
     }
 
     fn handle_mouse_look(&mut self, camera: &mut crate::resources::Camera, dx: f32, dy: f32) {
