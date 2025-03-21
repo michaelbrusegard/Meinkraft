@@ -1,6 +1,6 @@
 use crate::input::InputManager;
+use crate::scheduler::SystemScheduler;
 use crate::state::GameState;
-use crate::systems::{InitSystem, InputSystem, RenderSystem};
 use crate::window::WindowManager;
 use glutin::config::ConfigTemplateBuilder;
 use std::error::Error;
@@ -13,9 +13,7 @@ pub struct App {
     window_manager: WindowManager,
     input_manager: InputManager,
     game_state: Option<GameState>,
-    render_system: RenderSystem,
-    input_system: InputSystem,
-    init_system: InitSystem,
+    system_scheduler: SystemScheduler,
     pub exit_state: Result<(), Box<dyn Error>>,
 }
 
@@ -23,12 +21,10 @@ impl App {
     pub fn new(template: ConfigTemplateBuilder) -> Self {
         Self {
             window_manager: WindowManager::new(template),
-            exit_state: Ok(()),
             game_state: None,
-            render_system: RenderSystem::new(),
-            input_system: InputSystem::new(),
+            system_scheduler: SystemScheduler::new(),
             input_manager: InputManager::new(),
-            init_system: InitSystem::new(),
+            exit_state: Ok(()),
         }
     }
 
@@ -38,11 +34,7 @@ impl App {
 
         self.game_state = Some(GameState::new(gl, width, height));
         if let Some(game_state) = &mut self.game_state {
-            self.init_system.initialize(
-                &mut game_state.world,
-                &mut game_state.mesh_registry,
-                &mut game_state.renderer,
-            );
+            self.system_scheduler.initialize(game_state);
         }
 
         self.window_manager.initialize_window();
@@ -107,19 +99,8 @@ impl ApplicationHandler for App {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(game_state) = &mut self.game_state {
-            self.input_system.update(
-                &game_state.config,
-                &mut game_state.world,
-                &game_state.input_state,
-                &mut game_state.camera,
-            );
-
-            self.render_system.render(
-                &game_state.world,
-                &game_state.camera,
-                &game_state.renderer,
-                &game_state.shader_program,
-            );
+            self.system_scheduler.update(game_state);
+            self.system_scheduler.render(game_state);
 
             game_state.input_state.reset_frame_state();
             self.window_manager.swap_buffers();

@@ -1,6 +1,7 @@
 pub mod app;
 mod gl;
 mod input;
+mod scheduler;
 mod state;
 mod window;
 
