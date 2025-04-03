@@ -20,26 +20,45 @@ impl MeshRegistry {
 
     pub fn register_block_mesh(&mut self) -> usize {
         let vertices: Vec<f32> = vec![
-            // Front face
-            -0.5, -0.5, 0.5, // 0
-            0.5, -0.5, 0.5, // 1
-            0.5, 0.5, 0.5, // 2
-            -0.5, 0.5, 0.5, // 3
-            // Back face
-            -0.5, -0.5, -0.5, // 4
-            0.5, -0.5, -0.5, // 5
-            0.5, 0.5, -0.5, // 6
-            -0.5, 0.5, -0.5, // 7
+            // Front face (+Z)
+            -0.5, -0.5, 0.5, 0.0, 0.0, // Bottom-left
+            0.5, -0.5, 0.5, 1.0, 0.0, // Bottom-right
+            0.5, 0.5, 0.5, 1.0, 1.0, // Top-right
+            -0.5, 0.5, 0.5, 0.0, 1.0, // Top-left
+            // Back face (-Z)
+            -0.5, -0.5, -0.5, 1.0, 0.0, // Bottom-right (flipped UV X)
+            0.5, -0.5, -0.5, 0.0, 0.0, // Bottom-left (flipped UV X)
+            0.5, 0.5, -0.5, 0.0, 1.0, // Top-left (flipped UV X)
+            -0.5, 0.5, -0.5, 1.0, 1.0, // Top-right (flipped UV X)
+            // Right face (+X)
+            0.5, -0.5, 0.5, 0.0, 0.0, // Bottom-back
+            0.5, -0.5, -0.5, 1.0, 0.0, // Bottom-front
+            0.5, 0.5, -0.5, 1.0, 1.0, // Top-front
+            0.5, 0.5, 0.5, 0.0, 1.0, // Top-back
+            // Left face (-X)
+            -0.5, -0.5, -0.5, 0.0, 0.0, // Bottom-front
+            -0.5, -0.5, 0.5, 1.0, 0.0, // Bottom-back
+            -0.5, 0.5, 0.5, 1.0, 1.0, // Top-back
+            -0.5, 0.5, -0.5, 0.0, 1.0, // Top-front
+            // Top face (+Y)
+            -0.5, 0.5, 0.5, 0.0, 0.0, // Back-left
+            0.5, 0.5, 0.5, 1.0, 0.0, // Back-right
+            0.5, 0.5, -0.5, 1.0, 1.0, // Front-right
+            -0.5, 0.5, -0.5, 0.0, 1.0, // Front-left
+            // Bottom face (-Y)
+            -0.5, -0.5, -0.5, 0.0, 0.0, // Front-left
+            0.5, -0.5, -0.5, 1.0, 0.0, // Front-right
+            0.5, -0.5, 0.5, 1.0, 1.0, // Back-right
+            -0.5, -0.5, 0.5, 0.0, 1.0, // Back-left
         ];
 
         let indices: Vec<u32> = vec![
-            // Front
-            0, 1, 2, 2, 3, 0, // Right
-            1, 5, 6, 6, 2, 1, // Back
-            5, 4, 7, 7, 6, 5, // Left
-            4, 0, 3, 3, 7, 4, // Top
-            3, 2, 6, 6, 7, 3, // Bottom
-            4, 5, 1, 1, 0, 4,
+            0, 1, 2, 2, 3, 0, // Front
+            4, 5, 6, 6, 7, 4, // Back
+            8, 9, 10, 10, 11, 8, // Right
+            12, 13, 14, 14, 15, 12, // Left
+            16, 17, 18, 18, 19, 16, // Top
+            20, 21, 22, 22, 23, 20, // Bottom
         ];
 
         self.register_mesh(vertices, indices)

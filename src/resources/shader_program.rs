@@ -59,6 +59,7 @@ impl ShaderProgram {
         shader.register_uniform("modelMatrix");
         shader.register_uniform("viewMatrix");
         shader.register_uniform("projectionMatrix");
+        shader.register_uniform("blockTexture");
 
         shader
     }
@@ -117,6 +118,14 @@ impl ShaderProgram {
             unsafe {
                 self.gl
                     .UniformMatrix4fv(location, 1, gl::FALSE, value.as_ref().as_ptr());
+            }
+        }
+    }
+
+    pub fn set_uniform_int(&self, name: &str, value: i32) {
+        if let Some(&location) = self.uniform_locations.get(name) {
+            unsafe {
+                self.gl.Uniform1i(location, value);
             }
         }
     }

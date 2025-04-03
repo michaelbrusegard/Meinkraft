@@ -1,12 +1,15 @@
 use crate::gl;
 use crate::resources::MeshRegistry;
+use image::GenericImageView;
 use std::collections::HashMap;
+use std::path::Path;
 
 pub struct Renderer {
     pub gl: gl::Gl,
     pub vaos: HashMap<usize, gl::types::GLuint>,
     pub vbos: HashMap<usize, gl::types::GLuint>,
     pub ebos: HashMap<usize, gl::types::GLuint>,
+    pub textures: HashMap<String, gl::types::GLuint>,
 }
 
 impl Renderer {
@@ -14,6 +17,8 @@ impl Renderer {
         unsafe {
             gl.Enable(gl::DEPTH_BUFFER_BIT);
             gl.Enable(gl::DEPTH_TEST);
+            gl.Enable(gl::BLEND);
+            gl.BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
         }
 
         Self {
@@ -21,7 +26,69 @@ impl Renderer {
             vaos: HashMap::new(),
             vbos: HashMap::new(),
             ebos: HashMap::new(),
+            textures: HashMap::new(),
         }
+    }
+
+    pub fn load_textures(&mut self) {
+        let texture_files = [
+            ("dirt", "assets/textures/dirt.png"),
+            ("stone", "assets/textures/stone.png"),
+            ("grass_side", "assets/textures/grass_side.png"),
+            ("grass_top", "assets/textures/grass_top.png"),
+        ];
+
+        for (name, path) in texture_files {
+            match self.load_texture_from_file(path, name) {
+                Ok(_) => println!("Loaded texture: {}", name),
+                Err(e) => eprintln!("Failed to load texture {}: {}", name, e),
+            }
+        }
+    }
+
+    fn load_texture_from_file(
+        &mut self,
+        path: &str,
+        name: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let img = image::open(Path::new(path))?.flipv();
+        let rgba = img.to_rgba8();
+        let dimensions = rgba.dimensions();
+        let data = rgba.into_raw();
+
+        let mut texture_id = 0;
+        unsafe {
+            self.gl.GenTextures(1, &mut texture_id);
+            self.gl.ActiveTexture(gl::TEXTURE0);
+            self.gl.BindTexture(gl::TEXTURE_2D, texture_id);
+            self.gl
+                .TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
+            self.gl
+                .TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+            self.gl
+                .TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
+            self.gl
+                .TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+
+            self.gl.TexImage2D(
+                gl::TEXTURE_2D,
+                0,
+                gl::RGBA8 as i32,
+                dimensions.0 as i32,
+                dimensions.1 as i32,
+                0,
+                gl::RGBA,
+                gl::UNSIGNED_BYTE,
+                data.as_ptr() as *const _,
+            );
+            // Generate mipmaps?
+            // self.gl.GenerateMipmap(gl::TEXTURE_2D);
+
+            self.gl.BindTexture(gl::TEXTURE_2D, 0);
+        }
+
+        self.textures.insert(name.to_string(), texture_id);
+        Ok(())
     }
 
     pub fn initialize_mesh_resources(&mut self, mesh_registry: &MeshRegistry) {
@@ -56,23 +123,41 @@ impl Renderer {
                 gl::STATIC_DRAW,
             );
 
+            let stride = 5 * std::mem::size_of::<f32>() as gl::types::GLsizei;
+
+            self.gl
+                .VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, stride, std::ptr::null());
+            self.gl.EnableVertexAttribArray(0);
+
             self.gl.VertexAttribPointer(
-                0,
-                3,
+                1,
+                2,
                 gl::FLOAT,
                 gl::FALSE,
-                3 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                std::ptr::null(),
+                stride,
+                (3 * std::mem::size_of::<f32>()) as *const _,
             );
-            self.gl.EnableVertexAttribArray(0);
+            self.gl.EnableVertexAttribArray(1);
 
             self.vaos.insert(mesh_id, vao);
             self.vbos.insert(mesh_id, vbo);
             self.ebos.insert(mesh_id, ebo);
+
+            self.gl.BindBuffer(gl::ARRAY_BUFFER, 0);
+            self.gl.BindVertexArray(0);
         }
     }
 
-    pub fn cleanup_mesh_buffers(&mut self, mesh_id: usize) {
+    fn cleanup_textures(&mut self) {
+        for texture_id in self.textures.values() {
+            unsafe {
+                self.gl.DeleteTextures(1, texture_id);
+            }
+        }
+        self.textures.clear();
+    }
+
+    fn cleanup_mesh_buffers(&mut self, mesh_id: usize) {
         unsafe {
             if let Some(vao) = self.vaos.remove(&mesh_id) {
                 self.gl.DeleteVertexArrays(1, &vao);
@@ -108,5 +193,6 @@ impl Drop for Renderer {
         for mesh_id in mesh_ids {
             self.cleanup_mesh_buffers(mesh_id);
         }
+        self.cleanup_textures();
     }
 }
