@@ -1,6 +1,5 @@
 use crate::gl;
 use crate::resources::MeshRegistry;
-use image::GenericImageView;
 use std::collections::HashMap;
 use std::path::Path;
 

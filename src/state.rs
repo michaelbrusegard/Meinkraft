@@ -27,6 +27,7 @@ impl GameState {
         let mut mesh_registry = MeshRegistry::new();
         let block_mesh_id = mesh_registry.register_block_mesh();
 
+        renderer.load_textures();
         renderer.initialize_mesh_resources(&mesh_registry);
 
         let mut state = Self {

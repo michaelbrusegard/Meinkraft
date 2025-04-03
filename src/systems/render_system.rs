@@ -46,6 +46,9 @@ impl RenderSystem {
                 unsafe {
                     renderer.gl.BindTexture(crate::gl::TEXTURE_2D, *texture_id);
                 }
+            } else {
+                eprintln!("Warning: Texture not found for {}", texture_name);
+                continue;
             }
 
             if let Some(vao) = renderer.vaos.get(&renderable.mesh_id) {
@@ -58,6 +61,12 @@ impl RenderSystem {
                         std::ptr::null(),
                     );
                 }
+            } else {
+                eprintln!(
+                    "Warning: VAO not found for mesh_id: {:?}",
+                    renderable.mesh_id
+                );
+                continue;
             }
         }
     }
