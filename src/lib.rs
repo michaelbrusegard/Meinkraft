@@ -22,6 +22,7 @@ pub mod resources {
     mod mesh;
     mod renderer;
     mod shader_program;
+    mod texture_manager;
     mod world_builder;
 
     pub use camera::Camera;

@@ -38,10 +38,6 @@ impl Config {
     pub fn get_key(&self, action: &GameAction) -> Option<&Key> {
         self.key_bindings.get(action)
     }
-
-    pub fn set_key(&mut self, action: GameAction, key: Key) {
-        self.key_bindings.insert(action, key);
-    }
 }
 
 impl Default for Config {
