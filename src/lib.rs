@@ -31,6 +31,7 @@ pub mod resources {
     pub use mesh::{Mesh, MeshRegistry};
     pub use renderer::Renderer;
     pub use shader_program::ShaderProgram;
+    pub use texture_manager::{TextureManager, TextureUVs};
     pub use world_builder::WorldBuilder;
 }
 

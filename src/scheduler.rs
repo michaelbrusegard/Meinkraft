@@ -29,6 +29,7 @@ impl SystemScheduler {
             &game_state.camera,
             &game_state.renderer,
             &game_state.shader_program,
+            &game_state.texture_manager,
         );
     }
 }
