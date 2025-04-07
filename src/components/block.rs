@@ -1,8 +1,14 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+use enum_iterator::Sequence;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence)]
 pub enum BlockType {
     Dirt,
     Stone,
     Grass,
+    Sand,
+    Glass,
+    Log,
+    Planks,
 }
 
 pub struct Block {
@@ -28,6 +34,10 @@ impl BlockType {
                 "grass_top",
                 "dirt",
             ],
+            BlockType::Sand => ["sand", "sand", "sand", "sand", "sand", "sand"],
+            BlockType::Glass => ["glass", "glass", "glass", "glass", "glass", "glass"],
+            BlockType::Log => ["log", "log", "log", "log", "log_top", "log_top"],
+            BlockType::Planks => ["planks", "planks", "planks", "planks", "planks", "planks"],
         }
     }
 }

@@ -27,6 +27,9 @@ impl<'a> WorldBuilder<'a> {
 
         self.spawn_block(world, Vec3::new(0.0, 1.0, 0.0), BlockType::Stone);
         self.spawn_block(world, Vec3::new(0.0, 2.0, 0.0), BlockType::Stone);
+        self.spawn_block(world, Vec3::new(0.0, 1.0, 1.0), BlockType::Log);
+        self.spawn_block(world, Vec3::new(0.0, 1.0, 2.0), BlockType::Planks);
+        self.spawn_block(world, Vec3::new(0.0, 1.0, 3.0), BlockType::Glass);
     }
 
     fn spawn_block(&self, world: &mut World, position: Vec3, block_type: BlockType) {

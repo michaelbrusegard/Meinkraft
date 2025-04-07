@@ -2,6 +2,7 @@ use crate::components::BlockType;
 use crate::resources::{
     Camera, Config, InputState, MeshRegistry, Renderer, ShaderProgram, TextureManager, WorldBuilder,
 };
+use enum_iterator::all;
 use glam::Vec3;
 use hecs::World;
 use std::collections::HashMap;
@@ -34,6 +35,11 @@ impl GameState {
             ("stone", "assets/textures/stone.png"),
             ("grass_side", "assets/textures/grass_side.png"),
             ("grass_top", "assets/textures/grass_top.png"),
+            ("sand", "assets/textures/sand.png"),
+            ("glass", "assets/textures/glass.png"),
+            ("planks", "assets/textures/planks.png"),
+            ("log", "assets/textures/log.png"),
+            ("log_top", "assets/textures/log_top.png"),
         ];
         if let Err(e) = texture_manager.load_textures_and_build_atlas(&texture_files) {
             panic!("Failed to load textures or build atlas: {}", e);
@@ -42,8 +48,7 @@ impl GameState {
         let mut mesh_registry = MeshRegistry::new();
         let mut block_mesh_ids = HashMap::new();
 
-        let block_types = [BlockType::Dirt, BlockType::Stone, BlockType::Grass];
-        for block_type in block_types {
+        for block_type in all::<BlockType>() {
             let face_textures = block_type.get_face_textures();
             match mesh_registry.register_block_mesh(&texture_manager, face_textures) {
                 Ok(mesh_id) => {
