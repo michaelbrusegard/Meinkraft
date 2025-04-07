@@ -83,3 +83,9 @@ impl InputManager {
         }
     }
 }
+
+impl Default for InputManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
