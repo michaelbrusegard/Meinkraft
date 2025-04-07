@@ -14,6 +14,10 @@ impl InputManager {
         }
     }
 
+    pub fn is_cursor_grabbed(&self) -> bool {
+        self.cursor_grabbed
+    }
+
     pub fn handle_window_event(
         &mut self,
         event: &WindowEvent,

@@ -1,3 +1,4 @@
+use crate::input::InputManager;
 use crate::resources::{Config, GameAction, InputState};
 use glam::Vec3;
 use hecs::World;
@@ -21,7 +22,12 @@ impl InputSystem {
         _world: &mut World,
         input_state: &InputState,
         camera: &mut crate::resources::Camera,
+        input_manager: &InputManager,
     ) {
+        if !input_manager.is_cursor_grabbed() {
+            return;
+        }
+
         let (mouse_dx, mouse_dy) = input_state.mouse_delta;
         self.handle_mouse_look(config, camera, mouse_dx, mouse_dy);
         Self::handle_movement(config, input_state, camera);

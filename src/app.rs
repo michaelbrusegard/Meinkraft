@@ -95,7 +95,8 @@ impl ApplicationHandler for App {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(game_state) = &mut self.game_state {
-            self.system_scheduler.update(game_state);
+            self.system_scheduler
+                .update(game_state, &self.input_manager);
             self.system_scheduler.render(game_state);
 
             game_state.input_state.reset_frame_state();

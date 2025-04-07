@@ -1,3 +1,4 @@
+use crate::input::InputManager;
 use crate::state::GameState;
 use crate::systems::{InputSystem, RenderSystem};
 
@@ -14,12 +15,13 @@ impl SystemScheduler {
         }
     }
 
-    pub fn update(&mut self, game_state: &mut GameState) {
+    pub fn update(&mut self, game_state: &mut GameState, input_manager: &InputManager) {
         self.input_system.update(
             &game_state.config,
             &mut game_state.world,
             &game_state.input_state,
             &mut game_state.camera,
+            input_manager,
         );
     }
 
