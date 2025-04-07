@@ -41,7 +41,6 @@ impl TextureManager {
         let mut images = HashMap::new();
 
         for (name, path) in texture_files {
-            println!("Loading texture: {}", name);
             let img = ImageImporter::import_from_file(Path::new(path))?.flipv();
             images.insert(name.to_string(), img.clone());
             packer
@@ -75,10 +74,6 @@ impl TextureManager {
                 (frame_rect.y + frame_rect.h) as f32 / atlas_height as f32,
             ];
             self.texture_coords.insert(name.clone(), uvs);
-            println!(
-                "Packed '{}' at ({}, {}) size ({}, {}) -> UVs: {:?}",
-                name, frame_rect.x, frame_rect.y, frame_rect.w, frame_rect.h, uvs
-            );
         }
 
         if let Err(e) = atlas_image.save("debug_atlas.png") {

@@ -50,10 +50,6 @@ impl GameState {
                     let mesh = mesh_registry.meshes.get(mesh_id).unwrap();
                     renderer.upload_mesh_buffers(mesh_id, &mesh.vertices, &mesh.indices);
                     block_mesh_ids.insert(block_type, mesh_id);
-                    println!(
-                        "Registered and uploaded mesh for {:?} with ID {}",
-                        block_type, mesh_id
-                    );
                 }
                 Err(e) => {
                     panic!(
