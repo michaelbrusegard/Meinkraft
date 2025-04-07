@@ -103,7 +103,7 @@ impl MeshRegistry {
             8, 11, 10, 10, 9, 8, // Right
             12, 15, 14, 14, 13, 12, // Left
             16, 19, 18, 18, 17, 16, // Top
-            20, 23, 22, 22, 21, 20, // Bottom
+            20, 22, 23, 22, 20, 21, // Bottom
         ];
 
         Ok(self.register_mesh(vertices, indices))

@@ -41,7 +41,7 @@ impl Renderer {
             self.gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
             self.gl.BufferData(
                 gl::ARRAY_BUFFER,
-                (vertices.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
+                std::mem::size_of_val(vertices) as gl::types::GLsizeiptr,
                 vertices.as_ptr() as *const _,
                 gl::STATIC_DRAW,
             );
@@ -51,7 +51,7 @@ impl Renderer {
             self.gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
             self.gl.BufferData(
                 gl::ELEMENT_ARRAY_BUFFER,
-                (indices.len() * std::mem::size_of::<u32>()) as gl::types::GLsizeiptr,
+                std::mem::size_of_val(indices) as gl::types::GLsizeiptr,
                 indices.as_ptr() as *const _,
                 gl::STATIC_DRAW,
             );
