@@ -44,6 +44,14 @@ impl GameState {
             ("planks", "assets/textures/planks.png"),
             ("log", "assets/textures/log.png"),
             ("log_top", "assets/textures/log_top.png"),
+            ("water", "assets/textures/water.png"),
+            ("snow", "assets/textures/snow.png"),
+            ("ice", "assets/textures/ice.png"),
+            ("gravel", "assets/textures/gravel.png"),
+            ("andesite", "assets/textures/andesite.png"),
+            ("granite", "assets/textures/granite.png"),
+            ("diorite", "assets/textures/diorite.png"),
+            ("leaves", "assets/textures/leaves.png"),
         ];
         if let Err(e) = texture_manager.load_textures_and_build_atlas(&texture_files) {
             panic!("Failed to load textures or build atlas: {}", e);

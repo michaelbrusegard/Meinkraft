@@ -8,6 +8,14 @@ pub enum BlockType {
     Glass,
     Log,
     Planks,
+    Water,
+    Snow,
+    Ice,
+    Gravel,
+    Andesite,
+    Granite,
+    Diorite,
+    Leaves,
 }
 
 impl BlockType {
@@ -32,6 +40,20 @@ impl BlockType {
             BlockType::Glass => Some(["glass", "glass", "glass", "glass", "glass", "glass"]),
             BlockType::Log => Some(["log", "log", "log", "log", "log_top", "log_top"]),
             BlockType::Planks => Some(["planks", "planks", "planks", "planks", "planks", "planks"]),
+            BlockType::Water => Some(["water", "water", "water", "water", "water", "water"]),
+            BlockType::Snow => Some(["snow", "snow", "snow", "snow", "snow", "snow"]),
+            BlockType::Ice => Some(["ice", "ice", "ice", "ice", "ice", "ice"]),
+            BlockType::Gravel => Some(["gravel", "gravel", "gravel", "gravel", "gravel", "gravel"]),
+            BlockType::Andesite => Some([
+                "andesite", "andesite", "andesite", "andesite", "andesite", "andesite",
+            ]),
+            BlockType::Granite => Some([
+                "granite", "granite", "granite", "granite", "granite", "granite",
+            ]),
+            BlockType::Diorite => Some([
+                "diorite", "diorite", "diorite", "diorite", "diorite", "diorite",
+            ]),
+            BlockType::Leaves => Some(["leaves", "leaves", "leaves", "leaves", "leaves", "leaves"]),
         }
     }
 }
