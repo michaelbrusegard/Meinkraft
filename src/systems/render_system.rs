@@ -1,5 +1,5 @@
 use crate::components::{Renderable, Transform};
-use crate::resources::{Camera, Renderer, ShaderProgram, TextureManager};
+use crate::resources::{Camera, MeshRegistry, Renderer, ShaderProgram, TextureManager};
 use hecs::World;
 
 pub struct RenderSystem {}
@@ -16,6 +16,7 @@ impl RenderSystem {
         renderer: &Renderer,
         shader_program: &ShaderProgram,
         texture_manager: &TextureManager,
+        mesh_registry: &MeshRegistry,
     ) {
         renderer.clear();
         shader_program.use_program();
@@ -28,24 +29,31 @@ impl RenderSystem {
         texture_manager.bind_atlas(crate::gl::TEXTURE0);
         shader_program.set_uniform_int("blockTexture", 0);
 
-        for (_, (transform, renderable)) in world.query::<(&Transform, &Renderable)>().iter() {
-            let model_matrix = transform.model_matrix();
-            shader_program.set_uniform_mat4("modelMatrix", &model_matrix);
+        for (_entity, (transform, renderable)) in world.query::<(&Transform, &Renderable)>().iter()
+        {
+            if let Some(mesh) = mesh_registry.meshes.get(&renderable.mesh_id) {
+                if let Some(vao) = renderer.vaos.get(&renderable.mesh_id) {
+                    let model_matrix = transform.model_matrix();
+                    shader_program.set_uniform_mat4("modelMatrix", &model_matrix);
 
-            if let Some(vao) = renderer.vaos.get(&renderable.mesh_id) {
-                unsafe {
-                    renderer.gl.BindVertexArray(*vao);
-                    let index_count = 36;
-                    renderer.gl.DrawElements(
-                        crate::gl::TRIANGLES,
-                        index_count,
-                        crate::gl::UNSIGNED_INT,
-                        std::ptr::null(),
-                    );
+                    unsafe {
+                        renderer.gl.BindVertexArray(*vao);
+                        let index_count = mesh.indices.len() as i32;
+                        if index_count > 0 {
+                            renderer.gl.DrawElements(
+                                crate::gl::TRIANGLES,
+                                index_count,
+                                crate::gl::UNSIGNED_INT,
+                                std::ptr::null(),
+                            );
+                        }
+                    }
                 }
             } else {
-                eprintln!("Warning: VAO not found for mesh_id: {}", renderable.mesh_id);
-                continue;
+                eprintln!(
+                    "Error: Mesh data not found in registry for mesh_id: {} (entity: {:?})",
+                    renderable.mesh_id, _entity
+                );
             }
         }
 

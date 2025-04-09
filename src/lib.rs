@@ -7,10 +7,15 @@ mod window;
 
 pub mod components {
     mod block;
+    mod chunk;
     mod renderable;
     mod transform;
 
-    pub use block::{Block, BlockType};
+    pub use block::BlockType;
+    pub use chunk::{
+        chunk_coord_to_world_pos, world_to_chunk_coords, world_to_local_coords, ChunkCoord,
+        ChunkData, ChunkDirty, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_SIZE, CHUNK_WIDTH,
+    };
     pub use renderable::Renderable;
     pub use transform::Transform;
 }
@@ -20,6 +25,7 @@ pub mod resources {
     mod config;
     mod input_state;
     mod mesh;
+    mod mesh_generator;
     mod renderer;
     mod shader_program;
     mod texture_manager;
@@ -29,6 +35,7 @@ pub mod resources {
     pub use config::{Config, GameAction};
     pub use input_state::InputState;
     pub use mesh::{Mesh, MeshRegistry};
+    pub use mesh_generator::MeshGenerator;
     pub use renderer::Renderer;
     pub use shader_program::ShaderProgram;
     pub use texture_manager::{TextureManager, TextureUVs};
@@ -36,9 +43,11 @@ pub mod resources {
 }
 
 pub mod systems {
+    mod chunk_meshing_system;
     mod input_system;
     mod render_system;
 
+    pub use chunk_meshing_system::ChunkMeshingSystem;
     pub use input_system::InputSystem;
     pub use render_system::RenderSystem;
 }

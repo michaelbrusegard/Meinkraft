@@ -1,35 +1,29 @@
 use crate::gl;
-use std::collections::HashMap;
+use fnv::FnvHashMap;
 
 pub struct Renderer {
     pub gl: gl::Gl,
-    pub vaos: HashMap<usize, gl::types::GLuint>,
-    pub vbos: HashMap<usize, gl::types::GLuint>,
-    pub ebos: HashMap<usize, gl::types::GLuint>,
+    pub vaos: FnvHashMap<usize, gl::types::GLuint>,
+    pub vbos: FnvHashMap<usize, gl::types::GLuint>,
+    pub ebos: FnvHashMap<usize, gl::types::GLuint>,
 }
 
 impl Renderer {
     pub fn new(gl: gl::Gl) -> Self {
-        unsafe {
-            gl.Enable(gl::DEPTH_TEST);
-            gl.Enable(gl::BLEND);
-            gl.BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-            gl.PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
-            gl.Enable(gl::CULL_FACE);
-            gl.CullFace(gl::BACK);
-            gl.FrontFace(gl::CCW);
-        }
-
         Self {
             gl,
-            vaos: HashMap::new(),
-            vbos: HashMap::new(),
-            ebos: HashMap::new(),
+            vaos: FnvHashMap::default(),
+            vbos: FnvHashMap::default(),
+            ebos: FnvHashMap::default(),
         }
     }
 
     pub fn upload_mesh_buffers(&mut self, mesh_id: usize, vertices: &[f32], indices: &[u32]) {
         self.cleanup_mesh_buffers(mesh_id);
+
+        if vertices.is_empty() || indices.is_empty() {
+            return;
+        }
 
         unsafe {
             let mut vao = 0;
@@ -57,11 +51,9 @@ impl Renderer {
             );
 
             let stride = (5 * std::mem::size_of::<f32>()) as gl::types::GLsizei;
-
             self.gl
                 .VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, stride, std::ptr::null());
             self.gl.EnableVertexAttribArray(0);
-
             self.gl.VertexAttribPointer(
                 1,
                 2,
@@ -82,7 +74,7 @@ impl Renderer {
         }
     }
 
-    fn cleanup_mesh_buffers(&mut self, mesh_id: usize) {
+    pub fn cleanup_mesh_buffers(&mut self, mesh_id: usize) {
         unsafe {
             if let Some(vao) = self.vaos.remove(&mesh_id) {
                 self.gl.DeleteVertexArrays(1, &vao);
