@@ -29,16 +29,20 @@ impl ChunkLoadingSystem {
         println!("Camera entered chunk: {:?}", current_cam_coord);
 
         let render_dist = game_state.config.render_distance;
-
+        let render_dist_sq = render_dist * render_dist;
         let mut target_chunks = FnvHashSet::<ChunkCoord>::default();
         for cz in -render_dist..=render_dist {
             for cy in -render_dist..=render_dist {
                 for cx in -render_dist..=render_dist {
-                    target_chunks.insert(ChunkCoord(
-                        current_cam_coord.0 + cx,
-                        current_cam_coord.1 + cy,
-                        current_cam_coord.2 + cz,
-                    ));
+                    let dist_sq = cx * cx + cy * cy + cz * cz;
+
+                    if dist_sq <= render_dist_sq {
+                        target_chunks.insert(ChunkCoord(
+                            current_cam_coord.0 + cx,
+                            current_cam_coord.1 + cy,
+                            current_cam_coord.2 + cz,
+                        ));
+                    }
                 }
             }
         }
