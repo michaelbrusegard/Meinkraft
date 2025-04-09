@@ -107,7 +107,7 @@ impl ChunkMeshingSystem {
             }
 
             match game_state.world.remove_one::<ChunkDirty>(entity) {
-                Ok(_) => {} // Successfully removed
+                Ok(_) => {}
                 Err(e) => eprintln!("Failed to remove ChunkDirty tag for {:?}: {}", entity, e),
             }
 

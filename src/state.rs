@@ -24,7 +24,8 @@ pub struct GameState {
 
 impl GameState {
     pub fn new(gl: crate::gl::Gl, width: u32, height: u32) -> Self {
-        let renderer = Renderer::new(gl.clone());
+        let config = Config::new();
+        let renderer = Renderer::new(gl.clone(), &config);
         let shader_program = ShaderProgram::new(&renderer.gl);
         let camera = Camera::new(
             Vec3::new(0.0, 5.0, 15.0),
@@ -54,7 +55,7 @@ impl GameState {
         let chunk_entity_map = FnvHashMap::default();
 
         let mut state = Self {
-            config: Config::new(),
+            config,
             world,
             input_state: InputState::new(),
             camera,
