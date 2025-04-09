@@ -1,50 +1,145 @@
-use crate::components::{Block, BlockType, Renderable, Transform};
-use glam::Vec3;
-use hecs::World;
-use std::collections::HashMap;
+use crate::components::{
+    world_to_chunk_coords, world_to_local_coords, BlockType, ChunkCoord, ChunkData, ChunkDirty,
+};
+use fnv::{FnvHashMap, FnvHashSet};
+use hecs::{Entity, World};
 
-pub struct WorldBuilder<'a> {
-    block_mesh_ids: &'a HashMap<BlockType, usize>,
+pub struct BlockPosition {
+    x: i32,
+    y: i32,
+    z: i32,
 }
 
-impl<'a> WorldBuilder<'a> {
-    pub fn new(block_mesh_ids: &'a HashMap<BlockType, usize>) -> Self {
-        Self { block_mesh_ids }
+impl BlockPosition {
+    pub fn new(x: i32, y: i32, z: i32) -> Self {
+        Self { x, y, z }
+    }
+}
+
+pub struct WorldBuilder {}
+
+impl WorldBuilder {
+    pub fn new() -> Self {
+        Self {}
     }
 
-    pub fn build_initial_world(&self, world: &mut World) {
+    pub fn build_initial_world(
+        &self,
+        world: &mut World,
+        chunk_entity_map: &mut FnvHashMap<ChunkCoord, Entity>,
+    ) {
         let size = 5;
+        let mut affected_coords = FnvHashSet::<ChunkCoord>::default();
+
+        println!("Building initial world using hecs entities...");
         for x in -size..=size {
             for z in -size..=size {
-                // Ground layer
-                self.spawn_block(world, Vec3::new(x as f32, 0.0, z as f32), BlockType::Grass);
-                // Dirt layer below
-                self.spawn_block(world, Vec3::new(x as f32, -1.0, z as f32), BlockType::Dirt);
-                // Stone layer below dirt
-                self.spawn_block(world, Vec3::new(x as f32, -2.0, z as f32), BlockType::Stone);
+                self.set_block(
+                    world,
+                    chunk_entity_map,
+                    BlockPosition::new(x, 0, z),
+                    BlockType::Grass,
+                    &mut affected_coords,
+                );
+                self.set_block(
+                    world,
+                    chunk_entity_map,
+                    BlockPosition::new(x, -1, z),
+                    BlockType::Dirt,
+                    &mut affected_coords,
+                );
+                self.set_block(
+                    world,
+                    chunk_entity_map,
+                    BlockPosition::new(x, -2, z),
+                    BlockType::Stone,
+                    &mut affected_coords,
+                );
             }
         }
 
-        self.spawn_block(world, Vec3::new(0.0, 1.0, 0.0), BlockType::Stone);
-        self.spawn_block(world, Vec3::new(0.0, 2.0, 0.0), BlockType::Stone);
-        self.spawn_block(world, Vec3::new(0.0, 1.0, 1.0), BlockType::Log);
-        self.spawn_block(world, Vec3::new(0.0, 1.0, 2.0), BlockType::Planks);
-        self.spawn_block(world, Vec3::new(0.0, 1.0, 3.0), BlockType::Glass);
+        self.set_block(
+            world,
+            chunk_entity_map,
+            BlockPosition::new(0, 1, 0),
+            BlockType::Stone,
+            &mut affected_coords,
+        );
+        self.set_block(
+            world,
+            chunk_entity_map,
+            BlockPosition::new(0, 2, 0),
+            BlockType::Stone,
+            &mut affected_coords,
+        );
+        self.set_block(
+            world,
+            chunk_entity_map,
+            BlockPosition::new(0, 1, 1),
+            BlockType::Log,
+            &mut affected_coords,
+        );
+        self.set_block(
+            world,
+            chunk_entity_map,
+            BlockPosition::new(0, 1, 2),
+            BlockType::Planks,
+            &mut affected_coords,
+        );
+        self.set_block(
+            world,
+            chunk_entity_map,
+            BlockPosition::new(0, 1, 3),
+            BlockType::Glass,
+            &mut affected_coords,
+        );
+
+        for coord in affected_coords {
+            if let Some(entity) = chunk_entity_map.get(&coord) {
+                world.insert(*entity, (ChunkDirty,)).unwrap_or_else(|e| {
+                    eprintln!("Failed to insert ChunkDirty for {:?}: {}", coord, e)
+                });
+            }
+        }
+        println!(
+            "Initial world built. {} unique chunks affected.",
+            chunk_entity_map.len()
+        );
     }
 
-    fn spawn_block(&self, world: &mut World, position: Vec3, block_type: BlockType) {
-        let mesh_id = self
-            .block_mesh_ids
-            .get(&block_type)
-            .copied()
-            .unwrap_or_else(|| {
-                panic!("Mesh ID not found for block type: {:?}", block_type);
-            });
+    fn set_block(
+        &self,
+        world: &mut World,
+        chunk_entity_map: &mut FnvHashMap<ChunkCoord, Entity>,
+        position: BlockPosition,
+        block_type: BlockType,
+        affected_coords: &mut FnvHashSet<ChunkCoord>,
+    ) {
+        let chunk_coord = world_to_chunk_coords(position.x, position.y, position.z);
+        let (lx, ly, lz) = world_to_local_coords(position.x, position.y, position.z);
 
-        world.spawn((
-            Transform::new(position, Vec3::ZERO, Vec3::ONE),
-            Block::new(block_type),
-            Renderable::new(mesh_id),
-        ));
+        let entity = *chunk_entity_map
+            .entry(chunk_coord)
+            .or_insert_with(|| world.spawn((chunk_coord, ChunkData::new())));
+
+        match world.query_one_mut::<&mut ChunkData>(entity) {
+            Ok(chunk_data) => {
+                chunk_data.set_block(lx, ly, lz, block_type);
+                affected_coords.insert(chunk_coord);
+            }
+            Err(e) => {
+                eprintln!(
+                "Error: Failed to get mutable ChunkData via query_one_mut for entity {:?} at coord {:?}: {:?}",
+                entity, chunk_coord, e
+            );
+                chunk_entity_map.remove(&chunk_coord);
+            }
+        }
+    }
+}
+
+impl Default for WorldBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
