@@ -28,7 +28,7 @@ impl WorldBuilder {
         world: &mut World,
         chunk_entity_map: &mut FnvHashMap<ChunkCoord, Entity>,
     ) {
-        let size = 5;
+        let size = 32;
         let mut affected_coords = FnvHashSet::<ChunkCoord>::default();
 
         for x in -size..=size {
@@ -95,9 +95,7 @@ impl WorldBuilder {
 
         for coord in affected_coords {
             if let Some(entity) = chunk_entity_map.get(&coord) {
-                world.insert(*entity, (ChunkDirty,)).unwrap_or_else(|e| {
-                    eprintln!("Failed to insert ChunkDirty for {:?}: {}", coord, e)
-                });
+                let _ = world.insert(*entity, (ChunkDirty,));
             }
         }
     }

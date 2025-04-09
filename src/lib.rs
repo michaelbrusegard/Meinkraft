@@ -43,10 +43,12 @@ pub mod resources {
 }
 
 pub mod systems {
+    mod chunk_loading_system;
     mod chunk_meshing_system;
     mod input_system;
     mod render_system;
 
+    pub use chunk_loading_system::ChunkLoadingSystem;
     pub use chunk_meshing_system::ChunkMeshingSystem;
     pub use input_system::InputSystem;
     pub use render_system::RenderSystem;

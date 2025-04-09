@@ -16,6 +16,7 @@ pub struct Config {
     key_bindings: HashMap<GameAction, Key>,
     pub move_speed: f32,
     pub mouse_sensitivity: f32,
+    pub render_distance: i32,
 }
 
 impl Config {
@@ -34,6 +35,7 @@ impl Config {
             key_bindings,
             move_speed: 0.1,
             mouse_sensitivity: 0.003,
+            render_distance: 2,
         }
     }
 

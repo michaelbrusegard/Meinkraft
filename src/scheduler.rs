@@ -1,9 +1,10 @@
 use crate::input::InputManager;
 use crate::state::GameState;
-use crate::systems::{ChunkMeshingSystem, InputSystem, RenderSystem};
+use crate::systems::{ChunkLoadingSystem, ChunkMeshingSystem, InputSystem, RenderSystem};
 
 pub struct SystemScheduler {
     input_system: InputSystem,
+    chunk_loading_system: ChunkLoadingSystem,
     chunk_meshing_system: ChunkMeshingSystem,
     render_system: RenderSystem,
 }
@@ -12,6 +13,7 @@ impl SystemScheduler {
     pub fn new() -> Self {
         Self {
             input_system: InputSystem::new(),
+            chunk_loading_system: ChunkLoadingSystem::new(),
             chunk_meshing_system: ChunkMeshingSystem::new(),
             render_system: RenderSystem::new(),
         }
@@ -25,7 +27,7 @@ impl SystemScheduler {
             &mut game_state.camera,
             input_manager,
         );
-
+        self.chunk_loading_system.update(game_state);
         self.chunk_meshing_system.update(game_state);
     }
 
