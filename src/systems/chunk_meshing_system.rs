@@ -23,11 +23,6 @@ impl ChunkMeshingSystem {
             return;
         }
 
-        println!(
-            "Processing {} dirty chunks...",
-            dirty_chunks_to_process.len()
-        );
-
         for (entity, chunk_coord) in dirty_chunks_to_process {
             if !game_state.world.contains(entity) {
                 game_state.chunk_entity_map.remove(&chunk_coord);

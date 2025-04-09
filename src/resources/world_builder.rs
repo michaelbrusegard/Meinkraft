@@ -31,7 +31,6 @@ impl WorldBuilder {
         let size = 5;
         let mut affected_coords = FnvHashSet::<ChunkCoord>::default();
 
-        println!("Building initial world using hecs entities...");
         for x in -size..=size {
             for z in -size..=size {
                 self.set_block(
@@ -101,10 +100,6 @@ impl WorldBuilder {
                 });
             }
         }
-        println!(
-            "Initial world built. {} unique chunks affected.",
-            chunk_entity_map.len()
-        );
     }
 
     fn set_block(
