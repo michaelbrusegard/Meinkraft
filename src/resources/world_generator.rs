@@ -22,7 +22,7 @@ pub struct WorldGenerator {
 
 impl WorldGenerator {
     pub fn new(config: &Config) -> Self {
-        let seed = config.seed;
+        let seed = config.world_seed;
         let base_height_noise = Fbm::<Simplex>::new(seed)
             .set_frequency(BASE_FREQ)
             .set_octaves(4)

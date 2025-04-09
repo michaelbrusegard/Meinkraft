@@ -24,6 +24,11 @@ impl ChunkMeshingSystem {
         }
 
         for (entity, chunk_coord) in dirty_chunks_to_process {
+            let neighbors_exist = self.check_neighbors_exist(chunk_coord, game_state);
+            if !neighbors_exist {
+                continue;
+            }
+
             if !game_state.world.contains(entity) {
                 game_state.chunk_entity_map.remove(&chunk_coord);
                 continue;
@@ -113,6 +118,31 @@ impl ChunkMeshingSystem {
 
             game_state.chunk_entity_map.insert(chunk_coord, entity);
         }
+    }
+
+    fn check_neighbors_exist(&self, coord: ChunkCoord, game_state: &GameState) -> bool {
+        let neighbor_offsets = [
+            (1, 0, 0),  // right
+            (-1, 0, 0), // left
+            (0, 1, 0),  // up
+            (0, -1, 0), // down
+            (0, 0, 1),  // front
+            (0, 0, -1), // back
+        ];
+
+        for offset in neighbor_offsets {
+            let neighbor_coord =
+                ChunkCoord(coord.0 + offset.0, coord.1 + offset.1, coord.2 + offset.2);
+
+            if let Some(&entity) = game_state.chunk_entity_map.get(&neighbor_coord) {
+                if game_state.world.contains(entity) {
+                    continue;
+                }
+            }
+
+            return false;
+        }
+        true
     }
 }
 
