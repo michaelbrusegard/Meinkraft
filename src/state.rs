@@ -3,7 +3,7 @@ use crate::components::{
 };
 use crate::resources::{
     Camera, Config, InputState, MeshGenerator, MeshRegistry, Renderer, ShaderProgram,
-    TextureManager, WorldBuilder,
+    TextureManager, WorldGenerator,
 };
 use fnv::FnvHashMap;
 use glam::Vec3;
@@ -20,6 +20,7 @@ pub struct GameState {
     pub mesh_registry: MeshRegistry,
     pub mesh_generator: MeshGenerator,
     pub chunk_entity_map: FnvHashMap<ChunkCoord, Entity>,
+    pub world_generator: WorldGenerator,
 }
 
 impl GameState {
@@ -28,7 +29,7 @@ impl GameState {
         let renderer = Renderer::new(gl.clone(), &config);
         let shader_program = ShaderProgram::new(&renderer.gl);
         let camera = Camera::new(
-            Vec3::new(0.0, 5.0, 15.0),
+            Vec3::new(0.0, 64.0, 0.0),
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
             width as f32 / height as f32,
@@ -59,10 +60,11 @@ impl GameState {
 
         let mesh_registry = MeshRegistry::new();
         let mesh_generator = MeshGenerator::new();
+        let world_generator = WorldGenerator::new(&config);
         let world = World::new();
         let chunk_entity_map = FnvHashMap::default();
 
-        let mut state = Self {
+        Self {
             config,
             world,
             input_state: InputState::new(),
@@ -73,12 +75,8 @@ impl GameState {
             mesh_registry,
             mesh_generator,
             chunk_entity_map,
-        };
-
-        let world_builder = WorldBuilder::new();
-        world_builder.build_initial_world(&mut state.world, &mut state.chunk_entity_map);
-
-        state
+            world_generator,
+        }
     }
 
     pub fn handle_resize(&mut self, width: u32, height: u32) {

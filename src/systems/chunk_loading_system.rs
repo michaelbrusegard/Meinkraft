@@ -1,4 +1,4 @@
-use crate::components::{world_to_chunk_coords, ChunkCoord, ChunkData, ChunkDirty, Renderable};
+use crate::components::{world_to_chunk_coords, ChunkCoord, ChunkDirty, Renderable};
 use crate::state::GameState;
 use fnv::{FnvHashMap, FnvHashSet};
 use hecs::Entity;
@@ -26,15 +26,15 @@ impl ChunkLoadingSystem {
             return;
         }
         self.last_camera_chunk_coord = Some(current_cam_coord);
-        println!("Camera entered chunk: {:?}", current_cam_coord);
 
         let render_dist = game_state.config.render_distance;
         let render_dist_sq = render_dist * render_dist;
+
         let mut target_chunks = FnvHashSet::<ChunkCoord>::default();
         for cz in -render_dist..=render_dist {
             for cy in -render_dist..=render_dist {
                 for cx in -render_dist..=render_dist {
-                    let dist_sq = cx * cx + cy * cy + cz * cz;
+                    let dist_sq = cx * cx + cz * cz;
 
                     if dist_sq <= render_dist_sq {
                         target_chunks.insert(ChunkCoord(
@@ -92,20 +92,26 @@ impl ChunkLoadingSystem {
             if game_state.chunk_entity_map.contains_key(&coord_to_load) {
                 if let Some(entity) = game_state.chunk_entity_map.get(&coord_to_load) {
                     if game_state.world.contains(*entity) {
-                        let _ = game_state.world.insert(*entity, (ChunkDirty,));
+                        continue;
                     } else {
                         game_state.chunk_entity_map.remove(&coord_to_load);
                     }
-                } else {
-                    game_state.chunk_entity_map.remove(&coord_to_load);
-                }
-                if game_state.chunk_entity_map.contains_key(&coord_to_load) {
-                    continue;
                 }
             }
+            let mut already_in_world = false;
+            for (_e, &coord) in game_state.world.query::<&ChunkCoord>().iter() {
+                if coord == coord_to_load {
+                    already_in_world = true;
+                    break;
+                }
+            }
+            if already_in_world {
+                continue;
+            }
 
-            // TODO: Implement actual chunk data generation from noise and stuff
-            let chunk_data = ChunkData::new();
+            let chunk_data = game_state
+                .world_generator
+                .generate_chunk_data(coord_to_load);
 
             let new_entity = game_state
                 .world

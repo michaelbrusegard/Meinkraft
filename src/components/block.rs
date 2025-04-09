@@ -40,7 +40,7 @@ impl BlockType {
             BlockType::Glass => Some(["glass", "glass", "glass", "glass", "glass", "glass"]),
             BlockType::Log => Some(["log", "log", "log", "log", "log_top", "log_top"]),
             BlockType::Planks => Some(["planks", "planks", "planks", "planks", "planks", "planks"]),
-            BlockType::Water => Some(["water", "water", "water", "water", "water", "water"]),
+            BlockType::Water => Some(["glass", "glass", "glass", "glass", "glass", "glass"]),
             BlockType::Snow => Some(["snow", "snow", "snow", "snow", "snow", "snow"]),
             BlockType::Ice => Some(["ice", "ice", "ice", "ice", "ice", "ice"]),
             BlockType::Gravel => Some(["gravel", "gravel", "gravel", "gravel", "gravel", "gravel"]),

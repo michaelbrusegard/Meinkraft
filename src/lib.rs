@@ -29,7 +29,7 @@ pub mod resources {
     mod renderer;
     mod shader_program;
     mod texture_manager;
-    mod world_builder;
+    mod world_generator;
 
     pub use camera::Camera;
     pub use config::{Config, GameAction};
@@ -39,7 +39,7 @@ pub mod resources {
     pub use renderer::Renderer;
     pub use shader_program::ShaderProgram;
     pub use texture_manager::{TextureManager, TextureUVs};
-    pub use world_builder::WorldBuilder;
+    pub use world_generator::WorldGenerator;
 }
 
 pub mod systems {
