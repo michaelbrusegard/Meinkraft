@@ -118,7 +118,9 @@ impl WindowManager {
     }
 
     pub fn exit(&mut self) {
-        let _gl_display = self.gl_context.take().unwrap().display();
+        if let Some(context) = self.gl_context.take() {
+            let _gl_display = context.display();
+        }
         self.state = None;
     }
 
