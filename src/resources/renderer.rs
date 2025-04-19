@@ -1,5 +1,4 @@
 use crate::gl;
-use crate::resources::Config;
 use fnv::FnvHashMap;
 
 pub struct Renderer {
@@ -10,7 +9,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(gl: gl::Gl, config: &Config) -> Self {
+    pub fn new(gl: gl::Gl) -> Self {
         unsafe {
             gl.ClearColor(0.1, 0.1, 0.1, 1.0);
 
@@ -19,14 +18,7 @@ impl Renderer {
             gl.Enable(gl::BLEND);
             gl.BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 
-            gl.PolygonMode(
-                gl::FRONT_AND_BACK,
-                if config.debug_mode {
-                    gl::LINE
-                } else {
-                    gl::FILL
-                },
-            );
+            gl.PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
 
             gl.Enable(gl::CULL_FACE);
             gl.CullFace(gl::BACK);

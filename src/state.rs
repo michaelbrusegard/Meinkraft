@@ -39,13 +39,14 @@ pub struct GameState {
 impl GameState {
     pub fn new(gl: crate::gl::Gl, width: u32, height: u32) -> Self {
         let config = Config::new();
-        let renderer = Renderer::new(gl.clone(), &config);
+        let renderer = Renderer::new(gl.clone());
         let shader_program = ShaderProgram::new(&renderer.gl);
         let camera = Camera::new(
             Vec3::new(0.0, 20.0, 0.0),
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
             width as f32 / height as f32,
+            config.render_distance,
         );
         let mut texture_manager = TextureManager::new(renderer.gl.clone());
         let texture_files = [
