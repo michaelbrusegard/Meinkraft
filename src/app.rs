@@ -28,11 +28,14 @@ impl App {
         }
     }
 
-    fn initialize_game(&mut self) {
+    fn initialize_game_and_workers(&mut self) {
         let gl = self.window_manager.create_gl();
         let (width, height) = self.window_manager.get_dimensions().unwrap_or((800, 600));
 
-        self.game_state = Some(GameState::new(gl, width, height));
+        let mut game_state = GameState::new(gl, width, height);
+        game_state.initialize_workers();
+
+        self.game_state = Some(game_state);
         self.window_manager.initialize_window();
     }
 }
@@ -42,10 +45,11 @@ impl ApplicationHandler for App {
         match self.window_manager.resume(event_loop) {
             Ok(()) => {
                 if self.game_state.is_none() {
-                    self.initialize_game();
+                    self.initialize_game_and_workers();
                 }
             }
             Err(err) => {
+                eprintln!("Error resuming window manager: {}", err);
                 self.exit_state = Err(err);
                 event_loop.exit();
             }
@@ -57,23 +61,27 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        match event {
+        match &event {
             WindowEvent::Resized(size) if size.width != 0 && size.height != 0 => {
                 if let Some(game_state) = &mut self.game_state {
                     self.window_manager.resize(size.width, size.height);
                     game_state.handle_resize(size.width, size.height);
                 }
             }
-            WindowEvent::CloseRequested => event_loop.exit(),
-            _ => {
-                if let Some(game_state) = &mut self.game_state {
-                    self.input_manager.handle_window_event(
-                        &event,
-                        &mut game_state.input_state,
-                        &mut self.window_manager,
-                    );
-                }
+            WindowEvent::CloseRequested => {
+                println!("Close requested, exiting.");
+                event_loop.exit();
+                return;
             }
+            _ => {}
+        }
+
+        if let Some(game_state) = &mut self.game_state {
+            self.input_manager.handle_window_event(
+                &event,
+                &mut game_state.input_state,
+                &mut self.window_manager,
+            );
         }
     }
 
@@ -89,18 +97,28 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        self.window_manager.exit();
-    }
-
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(game_state) = &mut self.game_state {
             self.system_scheduler
-                .update(game_state, &self.input_manager);
+                .update_input(game_state, &self.input_manager);
+
+            self.system_scheduler
+                .process_updates_and_requests(game_state);
+
             self.system_scheduler.render(game_state);
 
             game_state.input_state.reset_frame_state();
+
             self.window_manager.swap_buffers();
         }
+    }
+
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        println!("Exiting application.");
+        if let Some(game_state) = self.game_state.take() {
+            let mut gs = game_state;
+            gs.shutdown_workers();
+        }
+        self.window_manager.exit();
     }
 }

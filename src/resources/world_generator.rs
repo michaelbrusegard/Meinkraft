@@ -2,8 +2,8 @@ use crate::components::{BlockType, ChunkCoord, ChunkData, CHUNK_DEPTH, CHUNK_HEI
 use crate::resources::Config;
 use noise::{Fbm, MultiFractal, NoiseFn, Simplex};
 
-const SEA_LEVEL: i32 = 62;
-const SNOW_LEVEL: i32 = 95;
+const SEA_LEVEL: i32 = 16;
+const SNOW_LEVEL: i32 = 64;
 const DIRT_DEPTH: i32 = 3;
 
 const BASE_FREQ: f64 = 1.0 / 512.0;

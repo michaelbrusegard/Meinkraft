@@ -1,6 +1,7 @@
 use crate::components::{Renderable, Transform};
 use crate::resources::{Camera, MeshRegistry, Renderer, ShaderProgram, TextureManager};
 use hecs::World;
+use std::sync::Arc;
 
 pub struct RenderSystem {}
 
@@ -15,7 +16,7 @@ impl RenderSystem {
         camera: &Camera,
         renderer: &Renderer,
         shader_program: &ShaderProgram,
-        texture_manager: &TextureManager,
+        texture_manager: &Arc<TextureManager>,
         mesh_registry: &MeshRegistry,
     ) {
         renderer.clear();
@@ -29,8 +30,7 @@ impl RenderSystem {
         texture_manager.bind_atlas(crate::gl::TEXTURE0);
         shader_program.set_uniform_int("blockTexture", 0);
 
-        for (_entity, (transform, renderable)) in world.query::<(&Transform, &Renderable)>().iter()
-        {
+        for (entity, (transform, renderable)) in world.query::<(&Transform, &Renderable)>().iter() {
             if let Some(mesh) = mesh_registry.meshes.get(&renderable.mesh_id) {
                 if let Some(vao) = renderer.vaos.get(&renderable.mesh_id) {
                     let model_matrix = transform.model_matrix();
@@ -47,12 +47,21 @@ impl RenderSystem {
                                 std::ptr::null(),
                             );
                         }
+                        let error = renderer.gl.GetError();
+                        if error != crate::gl::NO_ERROR {
+                            eprintln!("OpenGL Error after drawing entity {:?}: {}", entity, error);
+                        }
                     }
+                } else {
+                    eprintln!(
+                        "Warning: VAO not found for mesh_id: {} (entity: {:?})",
+                        renderable.mesh_id, entity
+                    );
                 }
             } else {
                 eprintln!(
                     "Error: Mesh data not found in registry for mesh_id: {} (entity: {:?})",
-                    renderable.mesh_id, _entity
+                    renderable.mesh_id, entity
                 );
             }
         }

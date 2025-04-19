@@ -1,6 +1,7 @@
 pub mod app;
 mod gl;
 mod input;
+mod persistence;
 mod scheduler;
 mod state;
 mod window;
@@ -14,7 +15,8 @@ pub mod components {
     pub use block::BlockType;
     pub use chunk::{
         chunk_coord_to_world_pos, world_to_chunk_coords, world_to_local_coords, ChunkCoord,
-        ChunkData, ChunkDirty, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_SIZE, CHUNK_WIDTH,
+        ChunkData, ChunkDirty, ChunkModified, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_SIZE, CHUNK_WIDTH,
+        MAX_CHUNK_Y, MIN_CHUNK_Y,
     };
     pub use renderable::Renderable;
     pub use transform::Transform;

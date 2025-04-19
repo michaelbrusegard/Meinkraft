@@ -1,11 +1,11 @@
-use crate::components::{ChunkCoord, ChunkData, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH};
-use crate::resources::{Mesh, TextureManager};
-use crate::state::GameState;
+use crate::components::{BlockType, ChunkCoord, ChunkData, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH};
+use crate::resources::{Mesh, TextureUVs};
+use std::collections::HashMap;
 
 struct FaceParams {
     position: [f32; 3],
     face_index: usize,
-    uvs: [f32; 4],
+    uvs: TextureUVs,
 }
 
 pub struct MeshGenerator {}
@@ -19,51 +19,88 @@ impl MeshGenerator {
         &self,
         chunk_coord: ChunkCoord,
         chunk_data: &ChunkData,
-        game_state: &GameState,
-        texture_manager: &TextureManager,
+        neighbors: &[Option<ChunkData>; 6],
+        texture_uvs: &HashMap<String, TextureUVs>,
     ) -> Option<Mesh> {
         let mut vertices: Vec<f32> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
         let mut index_offset: u32 = 0;
-
-        let ChunkCoord(cx, cy, cz) = chunk_coord;
-        let chunk_origin_x = cx * CHUNK_WIDTH as i32;
-        let chunk_origin_y = cy * CHUNK_HEIGHT as i32;
-        let chunk_origin_z = cz * CHUNK_DEPTH as i32;
 
         for y in 0..CHUNK_HEIGHT {
             for z in 0..CHUNK_DEPTH {
                 for x in 0..CHUNK_WIDTH {
                     let current_block_type = chunk_data.get_block(x, y, z);
 
-                    if !current_block_type.is_solid() {
+                    if current_block_type == BlockType::Air || !current_block_type.is_solid() {
                         continue;
                     }
-
-                    let world_x = chunk_origin_x + x as i32;
-                    let world_y = chunk_origin_y + y as i32;
-                    let world_z = chunk_origin_z + z as i32;
 
                     let face_textures = match current_block_type.get_face_textures() {
                         Some(textures) => textures,
                         None => continue,
                     };
 
-                    let neighbors = [
-                        game_state.get_block_world(world_x + 1, world_y, world_z), // Right (+X)
-                        game_state.get_block_world(world_x - 1, world_y, world_z), // Left (-X)
-                        game_state.get_block_world(world_x, world_y + 1, world_z), // Top (+Y)
-                        game_state.get_block_world(world_x, world_y - 1, world_z), // Bottom (-Y)
-                        game_state.get_block_world(world_x, world_y, world_z + 1), // Front (+Z)
-                        game_state.get_block_world(world_x, world_y, world_z - 1), // Back (-Z)
+                    let x_i32 = x as i32;
+                    let y_i32 = y as i32;
+                    let z_i32 = z as i32;
+
+                    let neighbor_blocks = [
+                        self.get_neighbor_block(
+                            x_i32 + 1,
+                            y_i32,
+                            z_i32,
+                            neighbors[0].as_ref(),
+                            chunk_data,
+                        ),
+                        self.get_neighbor_block(
+                            x_i32 - 1,
+                            y_i32,
+                            z_i32,
+                            neighbors[1].as_ref(),
+                            chunk_data,
+                        ),
+                        self.get_neighbor_block(
+                            x_i32,
+                            y_i32 + 1,
+                            z_i32,
+                            neighbors[2].as_ref(),
+                            chunk_data,
+                        ),
+                        self.get_neighbor_block(
+                            x_i32,
+                            y_i32 - 1,
+                            z_i32,
+                            neighbors[3].as_ref(),
+                            chunk_data,
+                        ),
+                        self.get_neighbor_block(
+                            x_i32,
+                            y_i32,
+                            z_i32 + 1,
+                            neighbors[4].as_ref(),
+                            chunk_data,
+                        ),
+                        self.get_neighbor_block(
+                            x_i32,
+                            y_i32,
+                            z_i32 - 1,
+                            neighbors[5].as_ref(),
+                            chunk_data,
+                        ),
                     ];
 
                     for face_index in 0..6 {
-                        if !neighbors[face_index].is_solid() {
+                        if !neighbor_blocks[face_index].is_solid() {
                             let texture_name = face_textures[Self::face_texture_index(face_index)];
-                            let uvs = match texture_manager.get_uvs(texture_name) {
-                                Some(uv) => uv,
-                                None => continue,
+                            let uvs = match texture_uvs.get(texture_name) {
+                                Some(uv) => *uv,
+                                None => {
+                                    eprintln!(
+                                        "Warning: UVs not found for texture '{}' at chunk {:?}, block ({},{},{})",
+                                        texture_name, chunk_coord, x, y, z
+                                    );
+                                    continue;
+                                }
                             };
                             Self::add_face(
                                 FaceParams {
@@ -89,14 +126,52 @@ impl MeshGenerator {
     }
 
     #[inline]
+    fn get_neighbor_block(
+        &self,
+        lx: i32,
+        ly: i32,
+        lz: i32,
+        neighbor_data: Option<&ChunkData>,
+        current_chunk_data: &ChunkData,
+    ) -> BlockType {
+        if lx < 0 {
+            neighbor_data.map_or(BlockType::Air, |data| {
+                data.get_block(CHUNK_WIDTH - 1, ly as usize, lz as usize)
+            })
+        } else if lx >= CHUNK_WIDTH as i32 {
+            neighbor_data.map_or(BlockType::Air, |data| {
+                data.get_block(0, ly as usize, lz as usize)
+            })
+        } else if ly < 0 {
+            neighbor_data.map_or(BlockType::Air, |data| {
+                data.get_block(lx as usize, CHUNK_HEIGHT - 1, lz as usize)
+            })
+        } else if ly >= CHUNK_HEIGHT as i32 {
+            neighbor_data.map_or(BlockType::Air, |data| {
+                data.get_block(lx as usize, 0, lz as usize)
+            })
+        } else if lz < 0 {
+            neighbor_data.map_or(BlockType::Air, |data| {
+                data.get_block(lx as usize, ly as usize, CHUNK_DEPTH - 1)
+            })
+        } else if lz >= CHUNK_DEPTH as i32 {
+            neighbor_data.map_or(BlockType::Air, |data| {
+                data.get_block(lx as usize, ly as usize, 0)
+            })
+        } else {
+            current_chunk_data.get_block(lx as usize, ly as usize, lz as usize)
+        }
+    }
+
+    #[inline]
     fn face_texture_index(face_index: usize) -> usize {
         match face_index {
             0 => 2,
             1 => 3,
-            2 => 4,
-            3 => 5,
-            4 => 0,
-            5 => 1,
+            2 => 0,
+            3 => 1,
+            4 => 4,
+            5 => 5,
             _ => 0,
         }
     }

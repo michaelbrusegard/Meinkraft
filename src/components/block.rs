@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockType {
     Air,
     Dirt,
@@ -26,34 +28,28 @@ impl BlockType {
     pub fn get_face_textures(&self) -> Option<[&'static str; 6]> {
         match self {
             BlockType::Air => None,
-            BlockType::Dirt => Some(["dirt", "dirt", "dirt", "dirt", "dirt", "dirt"]),
-            BlockType::Stone => Some(["stone", "stone", "stone", "stone", "stone", "stone"]),
+            BlockType::Dirt => Some(["dirt"; 6]),
+            BlockType::Stone => Some(["stone"; 6]),
             BlockType::Grass => Some([
-                "grass_side",
-                "grass_side",
-                "grass_side",
-                "grass_side",
                 "grass_top",
                 "dirt",
+                "grass_side",
+                "grass_side",
+                "grass_side",
+                "grass_side",
             ]),
-            BlockType::Sand => Some(["sand", "sand", "sand", "sand", "sand", "sand"]),
-            BlockType::Glass => Some(["glass", "glass", "glass", "glass", "glass", "glass"]),
-            BlockType::Log => Some(["log", "log", "log", "log", "log_top", "log_top"]),
-            BlockType::Planks => Some(["planks", "planks", "planks", "planks", "planks", "planks"]),
-            BlockType::Water => Some(["glass", "glass", "glass", "glass", "glass", "glass"]),
-            BlockType::Snow => Some(["snow", "snow", "snow", "snow", "snow", "snow"]),
-            BlockType::Ice => Some(["ice", "ice", "ice", "ice", "ice", "ice"]),
-            BlockType::Gravel => Some(["gravel", "gravel", "gravel", "gravel", "gravel", "gravel"]),
-            BlockType::Andesite => Some([
-                "andesite", "andesite", "andesite", "andesite", "andesite", "andesite",
-            ]),
-            BlockType::Granite => Some([
-                "granite", "granite", "granite", "granite", "granite", "granite",
-            ]),
-            BlockType::Diorite => Some([
-                "diorite", "diorite", "diorite", "diorite", "diorite", "diorite",
-            ]),
-            BlockType::Leaves => Some(["leaves", "leaves", "leaves", "leaves", "leaves", "leaves"]),
+            BlockType::Sand => Some(["sand"; 6]),
+            BlockType::Glass => Some(["glass"; 6]),
+            BlockType::Log => Some(["log_top", "log_top", "log", "log", "log", "log"]),
+            BlockType::Planks => Some(["planks"; 6]),
+            BlockType::Water => Some(["glass"; 6]),
+            BlockType::Snow => Some(["snow"; 6]),
+            BlockType::Ice => Some(["ice"; 6]),
+            BlockType::Gravel => Some(["gravel"; 6]),
+            BlockType::Andesite => Some(["andesite"; 6]),
+            BlockType::Granite => Some(["granite"; 6]),
+            BlockType::Diorite => Some(["diorite"; 6]),
+            BlockType::Leaves => Some(["leaves"; 6]),
         }
     }
 }

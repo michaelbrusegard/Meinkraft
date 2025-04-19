@@ -74,7 +74,7 @@ impl TextureManager {
         &mut self,
         texture_files: &[(&str, &str)],
     ) -> Result<(), Box<dyn Error>> {
-        let image_padding: u32 = 8;
+        let image_padding: u32 = 1;
 
         let config = TexturePackerConfig {
             max_width: 1024,
@@ -89,13 +89,13 @@ impl TextureManager {
         };
 
         let mut packer = TexturePacker::new_skyline(config);
-        let mut padded_images = HashMap::new();
+        let mut loaded_images = HashMap::new();
 
         for (name, path) in texture_files {
             let dynamic_img = ImageImporter::import_from_file(Path::new(path))?.flipv();
             let original_rgba_img = dynamic_img.to_rgba8();
             let padded_img = Self::pad_image_with_bleed(&original_rgba_img, image_padding);
-            padded_images.insert(name.to_string(), padded_img.clone());
+            loaded_images.insert(name.to_string(), padded_img.clone());
             packer
                 .pack_own(name.to_string(), padded_img)
                 .map_err(|e| format!("Failed to pack texture {}: {:?}", name, e))?;
@@ -111,7 +111,7 @@ impl TextureManager {
         let atlas_height_f = atlas_height as f32;
 
         for (name, frame) in packer.get_frames() {
-            let source_padded_image = padded_images
+            let source_padded_image = loaded_images
                 .get(name)
                 .ok_or_else(|| format!("Padded image not found for frame: {}", name))?;
             let frame_rect = frame.frame;
@@ -123,14 +123,24 @@ impl TextureManager {
                 frame_rect.y as i64,
             );
 
-            let content_u_min = (frame_rect.x + image_padding) as f32 / atlas_width_f;
-            let content_v_min = (frame_rect.y + image_padding) as f32 / atlas_height_f;
-            let content_u_max =
-                (frame_rect.x + frame_rect.w - image_padding) as f32 / atlas_width_f;
-            let content_v_max =
-                (frame_rect.y + frame_rect.h - image_padding) as f32 / atlas_height_f;
+            let content_x = frame_rect.x + image_padding;
+            let content_y = frame_rect.y + image_padding;
+            let content_w = frame_rect.w - 2 * image_padding;
+            let content_h = frame_rect.h - 2 * image_padding;
 
-            let uvs = [content_u_min, content_v_min, content_u_max, content_v_max];
+            let content_u_min = content_x as f32 / atlas_width_f;
+            let content_v_min = content_y as f32 / atlas_height_f;
+            let content_u_max = (content_x + content_w) as f32 / atlas_width_f;
+            let content_v_max = (content_y + content_h) as f32 / atlas_height_f;
+
+            let epsilon = 0.5 / atlas_width_f;
+
+            let uvs = [
+                content_u_min + epsilon,
+                content_v_min + epsilon,
+                content_u_max - epsilon,
+                content_v_max - epsilon,
+            ];
             self.texture_coords.insert(name.clone(), uvs);
         }
 
@@ -179,6 +189,10 @@ impl TextureManager {
 
     pub fn get_uvs(&self, name: &str) -> Option<TextureUVs> {
         self.texture_coords.get(name).copied()
+    }
+
+    pub fn get_all_uvs(&self) -> HashMap<String, TextureUVs> {
+        self.texture_coords.clone()
     }
 
     pub fn bind_atlas(&self, texture_unit: gl::types::GLenum) {

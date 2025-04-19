@@ -144,7 +144,6 @@ impl WindowManager {
                     .cast()
             });
 
-            gl.Enable(crate::gl::DEPTH_TEST);
             gl
         }
     }

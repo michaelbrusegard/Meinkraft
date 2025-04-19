@@ -15,6 +15,7 @@ impl Renderer {
             gl.ClearColor(0.1, 0.1, 0.1, 1.0);
 
             gl.Enable(gl::DEPTH_TEST);
+            gl.DepthFunc(gl::LESS);
             gl.Enable(gl::BLEND);
             gl.BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 
