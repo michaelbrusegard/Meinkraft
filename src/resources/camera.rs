@@ -1,3 +1,4 @@
+use crate::components::CHUNK_WIDTH;
 use glam::{Mat4, Vec3};
 
 pub struct Camera {
@@ -11,7 +12,14 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(position: Vec3, target: Vec3, up: Vec3, aspect_ratio: f32) -> Self {
+    pub fn new(
+        position: Vec3,
+        target: Vec3,
+        up: Vec3,
+        aspect_ratio: f32,
+        distance_chunks: i32,
+    ) -> Self {
+        let far = (distance_chunks as f32) * (CHUNK_WIDTH as f32) + (CHUNK_WIDTH as f32);
         Self {
             position,
             target,
@@ -19,7 +27,7 @@ impl Camera {
             aspect_ratio,
             fov: 90.0f32.to_radians(),
             near: 0.1,
-            far: 100.0,
+            far,
         }
     }
 

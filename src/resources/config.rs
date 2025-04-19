@@ -12,7 +12,6 @@ pub enum GameAction {
 }
 
 pub struct Config {
-    pub debug_mode: bool,
     key_bindings: HashMap<GameAction, Key>,
     pub move_speed: f32,
     pub mouse_sensitivity: f32,
@@ -32,11 +31,10 @@ impl Config {
         key_bindings.insert(GameAction::MoveDown, Key::Named(NamedKey::Shift));
 
         Self {
-            debug_mode: false,
             key_bindings,
-            move_speed: 0.1,
+            move_speed: 1.0, // 0.1 is good for normal walking speed, higher for sweeping the landscape
             mouse_sensitivity: 0.003,
-            render_distance: 8,
+            render_distance: 16,
             world_seed: 42069,
         }
     }
