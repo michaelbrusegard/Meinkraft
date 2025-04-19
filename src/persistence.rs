@@ -99,6 +99,7 @@ impl ChunkCache {
 
 pub type NeighborData = Box<[Option<ChunkData>; 6]>;
 
+#[allow(dead_code)]
 pub struct WorkerPool {
     world_generator: Arc<WorldGenerator>,
     mesh_generator: Arc<MeshGenerator>,

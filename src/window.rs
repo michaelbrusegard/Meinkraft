@@ -135,17 +135,15 @@ impl WindowManager {
     pub fn create_gl(&self) -> crate::gl::Gl {
         let gl_config = self.gl_context.as_ref().unwrap().config();
 
-        unsafe {
-            let gl = crate::gl::Gl::load_with(|symbol| {
-                let symbol = CString::new(symbol).unwrap();
-                gl_config
-                    .display()
-                    .get_proc_address(symbol.as_c_str())
-                    .cast()
-            });
+        let gl = crate::gl::Gl::load_with(|symbol| {
+            let symbol = CString::new(symbol).unwrap();
+            gl_config
+                .display()
+                .get_proc_address(symbol.as_c_str())
+                .cast()
+        });
 
-            gl
-        }
+        gl
     }
 
     fn create_gl_context(window: &Window, gl_config: &Config) -> NotCurrentContext {

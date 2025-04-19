@@ -36,7 +36,7 @@ impl Config {
             key_bindings,
             move_speed: 0.1,
             mouse_sensitivity: 0.003,
-            render_distance: 4,
+            render_distance: 8,
             world_seed: 42069,
         }
     }
