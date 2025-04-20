@@ -1,7 +1,9 @@
 use crate::components::{
     world_to_chunk_coords, world_to_local_coords, BlockType, ChunkCoord, ChunkData, ChunkModified,
 };
-use crate::persistence::{ChunkCache, NeighborData, WorkerChannels, WorkerPool, WorkerResources};
+use crate::persistence::{
+    ChunkCache, LoadRequest, LoadResult, NeighborData, WorkerChannels, WorkerPool, WorkerResources,
+};
 use crate::resources::{
     Camera, Config, InputState, Mesh, MeshGenerator, MeshRegistry, Renderer, ShaderProgram,
     TextureManager, WorldGenerator,
@@ -25,12 +27,12 @@ pub struct GameState {
     pub chunk_entity_map: FnvHashMap<ChunkCoord, Entity>,
     pub world_generator: Arc<WorldGenerator>,
     pub chunk_cache: ChunkCache,
-    pub gen_request_tx: Sender<ChunkCoord>,
-    pub gen_result_rx: Receiver<(ChunkCoord, ChunkData)>,
+    pub gen_request_tx: Sender<LoadRequest>,
+    pub gen_result_rx: Receiver<LoadResult>,
     pub mesh_request_tx: Sender<(Entity, ChunkCoord, ChunkData, NeighborData)>,
     pub mesh_result_rx: Receiver<(Entity, ChunkCoord, Option<Mesh>)>,
-    gen_request_rx_worker: Option<Receiver<ChunkCoord>>,
-    gen_result_tx_worker: Option<Sender<(ChunkCoord, ChunkData)>>,
+    gen_request_rx_worker: Option<Receiver<LoadRequest>>,
+    gen_result_tx_worker: Option<Sender<LoadResult>>,
     mesh_request_rx_worker: Option<Receiver<(Entity, ChunkCoord, ChunkData, NeighborData)>>,
     mesh_result_tx_worker: Option<Sender<(Entity, ChunkCoord, Option<Mesh>)>>,
     worker_pool: Option<WorkerPool>,
@@ -44,10 +46,11 @@ impl GameState {
         let camera = Camera::new(
             Vec3::new(0.0, 20.0, 0.0),
             Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::Y,
             width as f32 / height as f32,
             config.render_distance,
         );
+
         let mut texture_manager = TextureManager::new(renderer.gl.clone());
         let texture_files = [
             ("dirt", "assets/textures/dirt.png"),
@@ -80,8 +83,8 @@ impl GameState {
         let world = World::new();
         let chunk_entity_map = FnvHashMap::default();
 
-        let (gen_request_tx, gen_request_rx_worker) = crossbeam_channel::unbounded();
-        let (gen_result_tx_worker, gen_result_rx) = crossbeam_channel::unbounded();
+        let (gen_request_tx, gen_request_rx_worker) = crossbeam_channel::unbounded::<LoadRequest>();
+        let (gen_result_tx_worker, gen_result_rx) = crossbeam_channel::unbounded::<LoadResult>();
         let (mesh_request_tx, mesh_request_rx_worker) =
             crossbeam_channel::unbounded::<(Entity, ChunkCoord, ChunkData, NeighborData)>();
         let (mesh_result_tx_worker, mesh_result_rx) =

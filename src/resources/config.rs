@@ -15,6 +15,7 @@ pub struct Config {
     key_bindings: HashMap<GameAction, Key>,
     pub move_speed: f32,
     pub mouse_sensitivity: f32,
+    pub load_distance: i32,
     pub render_distance: i32,
     pub world_seed: u32,
 }
@@ -32,9 +33,10 @@ impl Config {
 
         Self {
             key_bindings,
-            move_speed: 1.0, // 0.1 is good for normal walking speed, higher for sweeping the landscape
+            move_speed: 1.0,
             mouse_sensitivity: 0.003,
-            render_distance: 16,
+            load_distance: 16,
+            render_distance: 32,
             world_seed: 42069,
         }
     }

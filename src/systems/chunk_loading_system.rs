@@ -1,29 +1,36 @@
 use crate::components::{
-    world_to_chunk_coords, ChunkCoord, ChunkDirty, Renderable, MAX_CHUNK_Y, MIN_CHUNK_Y,
+    world_to_chunk_coords, ChunkCoord, ChunkData, ChunkDirty, ChunkModified, Renderable,
+    MAX_CHUNK_Y, MIN_CHUNK_Y,
 };
+use crate::persistence::LoadRequest;
 use crate::state::GameState;
 use fnv::FnvHashSet;
+use hecs::Entity;
 
 pub struct ChunkLoadingSystem {
     last_camera_chunk_coord_xz: Option<(i32, i32)>,
-    pending_chunks: FnvHashSet<ChunkCoord>,
+    pending_requests: FnvHashSet<ChunkCoord>,
 }
 
 impl ChunkLoadingSystem {
     pub fn new() -> Self {
         Self {
             last_camera_chunk_coord_xz: None,
-            pending_chunks: FnvHashSet::default(),
+            pending_requests: FnvHashSet::default(),
         }
     }
 
     pub fn update(&mut self, game_state: &mut GameState) {
-        while let Ok((coord, chunk_data)) = game_state.gen_result_rx.try_recv() {
-            self.pending_chunks.remove(&coord);
-            if self.is_chunk_in_range(coord, game_state) {
-                let new_entity = game_state.world.spawn((coord, chunk_data, ChunkDirty));
-                game_state.chunk_entity_map.insert(coord, new_entity);
-                self.mark_neighbors_dirty(coord, game_state);
+        while let Ok((coord, opt_chunk_data)) = game_state.gen_result_rx.try_recv() {
+            self.pending_requests.remove(&coord);
+            if let Some(chunk_data) = opt_chunk_data {
+                if self.is_chunk_within_render_distance(coord, game_state)
+                    && !game_state.chunk_entity_map.contains_key(&coord)
+                {
+                    let new_entity = game_state.world.spawn((coord, chunk_data, ChunkDirty)); // Mut borrow world
+                    game_state.chunk_entity_map.insert(coord, new_entity);
+                    self.mark_neighbors_dirty(coord, game_state);
+                }
             }
         }
 
@@ -43,95 +50,136 @@ impl ChunkLoadingSystem {
         }
         self.last_camera_chunk_coord_xz = Some(current_cam_chunk_xz);
 
+        let (cam_cx, cam_cz) = current_cam_chunk_xz;
+        let load_dist = game_state.config.load_distance;
         let render_dist = game_state.config.render_distance;
+        let load_dist_sq = load_dist * load_dist;
         let render_dist_sq = render_dist * render_dist;
 
-        let mut target_chunks = FnvHashSet::<ChunkCoord>::default();
-        let (cam_cx, cam_cz) = current_cam_chunk_xz;
+        let mut target_render_chunks = FnvHashSet::<ChunkCoord>::default();
 
         for dz in -render_dist..=render_dist {
             for dx in -render_dist..=render_dist {
-                let dist_sq_xz = dx * dx + dz * dz;
-
-                if dist_sq_xz <= render_dist_sq {
+                let dist_sq = dx * dx + dz * dz;
+                if dist_sq <= render_dist_sq {
                     let target_cx = cam_cx + dx;
                     let target_cz = cam_cz + dz;
-
                     for target_cy in MIN_CHUNK_Y..=MAX_CHUNK_Y {
-                        target_chunks.insert(ChunkCoord(target_cx, target_cy, target_cz));
+                        target_render_chunks.insert(ChunkCoord(target_cx, target_cy, target_cz));
                     }
                 }
             }
         }
 
-        let loaded_chunk_coords: FnvHashSet<ChunkCoord> =
+        let currently_loaded_coords: FnvHashSet<ChunkCoord> =
             game_state.chunk_entity_map.keys().copied().collect();
 
-        let chunks_to_load: Vec<ChunkCoord> = target_chunks
-            .difference(&loaded_chunk_coords)
-            .filter(|coord| !self.pending_chunks.contains(coord))
-            .copied()
-            .collect();
+        for coord_to_load in target_render_chunks.iter() {
+            if !currently_loaded_coords.contains(coord_to_load)
+                && !self.pending_requests.contains(coord_to_load)
+            {
+                let dx = coord_to_load.0 - cam_cx;
+                let dz = coord_to_load.2 - cam_cz;
+                let request_type = if dx * dx + dz * dz <= load_dist_sq {
+                    LoadRequest::LoadOrGenerate(*coord_to_load)
+                } else {
+                    LoadRequest::LoadFromCache(*coord_to_load)
+                };
 
-        let chunks_to_unload: Vec<ChunkCoord> = loaded_chunk_coords
-            .iter()
-            .filter(|loaded_coord| {
-                let dx = loaded_coord.0 - cam_cx;
-                let dz = loaded_coord.2 - cam_cz;
-                let dist_sq_xz = dx * dx + dz * dz;
-                dist_sq_xz > render_dist_sq
-            })
-            .copied()
-            .collect();
-
-        for coord_to_unload in chunks_to_unload {
-            if let Some(entity) = game_state.chunk_entity_map.remove(&coord_to_unload) {
-                if game_state.world.contains(entity) {
-                    if let Ok(renderable) = game_state.world.get::<&Renderable>(entity) {
-                        let mesh_id = renderable.mesh_id;
-                        game_state.renderer.cleanup_mesh_buffers(mesh_id);
-                        game_state.mesh_registry.remove_mesh(mesh_id);
-                    }
-                    if let Err(e) = game_state.world.despawn(entity) {
-                        eprintln!(
-                            "Error despawning entity {:?} for chunk {:?}: {}",
-                            entity, coord_to_unload, e
-                        );
-                    }
+                if game_state.gen_request_tx.send(request_type).is_ok() {
+                    self.pending_requests.insert(*coord_to_load);
+                } else {
+                    eprintln!("Failed to send chunk load request for {:?}", coord_to_load);
                 }
             }
-            self.pending_chunks.remove(&coord_to_unload);
         }
 
-        for coord_to_load in chunks_to_load {
-            if game_state.chunk_entity_map.contains_key(&coord_to_load)
-                || self.pending_chunks.contains(&coord_to_load)
-            {
-                continue;
+        let mut coords_to_unload = Vec::new();
+        for loaded_coord in currently_loaded_coords.iter() {
+            let dx = loaded_coord.0 - cam_cx;
+            let dz = loaded_coord.2 - cam_cz;
+            if dx * dx + dz * dz > render_dist_sq {
+                coords_to_unload.push(*loaded_coord);
+            }
+        }
+
+        struct UnloadInfo {
+            entity: Entity,
+            coord: ChunkCoord,
+            data_to_save: Option<ChunkData>,
+            mesh_id_to_remove: Option<usize>,
+        }
+        let mut unload_infos = Vec::new();
+
+        for coord in coords_to_unload {
+            if let Some(entity) = game_state.chunk_entity_map.get(&coord).copied() {
+                if game_state.world.contains(entity) {
+                    let mut data_to_save: Option<ChunkData> = None;
+                    if game_state.world.get::<&ChunkModified>(entity).is_ok() {
+                        if let Ok(data_ref) = game_state.world.get::<&ChunkData>(entity) {
+                            data_to_save = Some((*data_ref).clone());
+                        } else {
+                            eprintln!(
+                                "ChunkData missing for modified chunk {:?} during unload check",
+                                coord
+                            );
+                        }
+                    }
+
+                    let mesh_id_to_remove = game_state
+                        .world
+                        .get::<&Renderable>(entity)
+                        .map(|r| r.mesh_id)
+                        .ok();
+
+                    unload_infos.push(UnloadInfo {
+                        entity,
+                        coord,
+                        data_to_save,
+                        mesh_id_to_remove,
+                    });
+                } else {
+                    game_state.chunk_entity_map.remove(&coord);
+                }
+            }
+            self.pending_requests.remove(&coord);
+        }
+
+        for info in unload_infos {
+            if let Some(data) = info.data_to_save {
+                if let Err(e) = game_state.chunk_cache.save_chunk(info.coord, &data) {
+                    eprintln!("Failed to save chunk {:?} during unload: {}", info.coord, e);
+                }
+                if game_state.world.contains(info.entity) {
+                    let _ = game_state.world.remove_one::<ChunkModified>(info.entity);
+                }
             }
 
-            if game_state.gen_request_tx.send(coord_to_load).is_ok() {
-                self.pending_chunks.insert(coord_to_load);
-            } else {
-                eprintln!(
-                    "Failed to send chunk generation request for {:?}",
-                    coord_to_load
-                );
+            if let Some(mesh_id) = info.mesh_id_to_remove {
+                game_state.renderer.cleanup_mesh_buffers(mesh_id);
+                game_state.mesh_registry.remove_mesh(mesh_id);
+            }
+
+            game_state.chunk_entity_map.remove(&info.coord);
+
+            if game_state.world.contains(info.entity) {
+                if let Err(e) = game_state.world.despawn(info.entity) {
+                    eprintln!(
+                        "Error despawning entity {:?} for chunk {:?}: {}",
+                        info.entity, info.coord, e
+                    );
+                }
             }
         }
     }
 
-    fn is_chunk_in_range(&self, coord: ChunkCoord, game_state: &GameState) -> bool {
+    fn is_chunk_within_render_distance(&self, coord: ChunkCoord, game_state: &GameState) -> bool {
         if let Some((cam_cx, cam_cz)) = self.last_camera_chunk_coord_xz {
             let render_dist = game_state.config.render_distance;
             let render_dist_sq = render_dist * render_dist;
-
             let dx = coord.0 - cam_cx;
             let dz = coord.2 - cam_cz;
-
-            let dist_sq_xz = dx * dx + dz * dz;
-
-            dist_sq_xz <= render_dist_sq
+            dx * dx + dz * dz <= render_dist_sq
         } else {
             false
         }
@@ -146,7 +194,6 @@ impl ChunkLoadingSystem {
             (0, 0, 1),
             (0, 0, -1),
         ];
-
         for offset in neighbor_offsets {
             let neighbor_coord =
                 ChunkCoord(coord.0 + offset.0, coord.1 + offset.1, coord.2 + offset.2);
@@ -158,7 +205,12 @@ impl ChunkLoadingSystem {
                             .get::<&ChunkDirty>(*neighbor_entity)
                             .is_err()
                     {
-                        let _ = game_state.world.insert_one(*neighbor_entity, ChunkDirty);
+                        if let Err(e) = game_state.world.insert_one(*neighbor_entity, ChunkDirty) {
+                            eprintln!(
+                                "Failed to insert ChunkDirty for neighbor {:?} of {:?}: {}",
+                                neighbor_coord, coord, e
+                            );
+                        }
                     }
                 }
             }

@@ -12,6 +12,14 @@ use std::thread;
 
 const BINCODE_CONFIG: Configuration = standard();
 
+#[derive(Debug, Clone, Copy)]
+pub enum LoadRequest {
+    LoadOrGenerate(ChunkCoord),
+    LoadFromCache(ChunkCoord),
+}
+
+pub type LoadResult = (ChunkCoord, Option<ChunkData>);
+
 pub struct WorkerResources {
     pub world_generator: Arc<WorldGenerator>,
     pub mesh_generator: Arc<MeshGenerator>,
@@ -20,9 +28,9 @@ pub struct WorkerResources {
 }
 
 pub struct WorkerChannels {
-    pub gen_request_rx: Receiver<ChunkCoord>,
+    pub gen_request_rx: Receiver<LoadRequest>,
     pub mesh_request_rx: Receiver<(Entity, ChunkCoord, ChunkData, NeighborData)>,
-    pub gen_result_tx: Sender<(ChunkCoord, ChunkData)>,
+    pub gen_result_tx: Sender<LoadResult>,
     pub mesh_result_tx: Sender<(Entity, ChunkCoord, Option<Mesh>)>,
 }
 
@@ -57,7 +65,7 @@ impl ChunkCache {
             Ok(file) => {
                 let mut writer = BufWriter::new(file);
                 bincode::serde::encode_into_std_write(chunk_data, &mut writer, BINCODE_CONFIG)
-                    .map(|_| ()) // Map Ok(usize) to Ok(())
+                    .map(|_| ())
                     .map_err(|e| {
                         IoError::new(ErrorKind::Other, format!("Bincode encode error: {}", e))
                     })
@@ -105,9 +113,9 @@ pub struct WorkerPool {
     mesh_generator: Arc<MeshGenerator>,
     texture_manager_uvs: Arc<StdHashMap<String, TextureUVs>>,
     chunk_cache: ChunkCache,
-    gen_request_rx: Receiver<ChunkCoord>,
+    gen_request_rx: Receiver<LoadRequest>,
     mesh_request_rx: Receiver<(Entity, ChunkCoord, ChunkData, NeighborData)>,
-    gen_result_tx: Sender<(ChunkCoord, ChunkData)>,
+    gen_result_tx: Sender<LoadResult>,
     mesh_result_tx: Sender<(Entity, ChunkCoord, Option<Mesh>)>,
     shutdown_tx: Sender<()>,
     worker_handles: Vec<thread::JoinHandle<()>>,
@@ -118,14 +126,10 @@ impl WorkerPool {
         let num_threads = num_cpus::get().saturating_sub(1).max(1);
         let mut worker_handles = Vec::with_capacity(num_threads);
         let (shutdown_tx, shutdown_rx) = crossbeam_channel::bounded::<()>(num_threads);
-
-        println!("Spawning {} worker threads...", num_threads);
-
         let wg = Arc::clone(&resources.world_generator);
         let mg = Arc::clone(&resources.mesh_generator);
         let tm_uvs = Arc::clone(&resources.texture_manager_uvs);
         let cache = resources.chunk_cache.clone();
-
         let gen_rx = channels.gen_request_rx.clone();
         let mesh_rx = channels.mesh_request_rx.clone();
         let gen_tx = channels.gen_result_tx.clone();
@@ -154,29 +158,37 @@ impl WorkerPool {
                     let gen_tx = gen_tx_clone;
                     let mesh_tx = mesh_tx_clone;
 
-                    println!("Worker thread {} started.", i);
                     loop {
                         crossbeam_channel::select! {
                             recv(gen_rx) -> msg => match msg {
-                                Ok(coord) => {
+                                Ok(request) => {
+                                    let (coord, should_generate) = match request {
+                                        LoadRequest::LoadOrGenerate(c) => (c, true),
+                                        LoadRequest::LoadFromCache(c) => (c, false),
+                                    };
+
                                     match cache.load_chunk(coord) {
                                         Ok(Some(data)) => {
-                                            if gen_tx.send((coord, data)).is_err() { break; }
+                                            if gen_tx.send((coord, Some(data))).is_err() { break; }
                                         },
                                         Ok(None) => {
-                                            let data = wg.generate_chunk_data(coord);
-                                            if let Err(e) = cache.save_chunk(coord, &data) {
-                                                 eprintln!("Worker {}: Error saving newly generated chunk {:?}: {}", i, coord, e);
-                                            }
-                                            if gen_tx.send((coord, data)).is_err() { break; }
+                                            if should_generate {
+                                                let data = wg.generate_chunk_data(coord);
+                                                if let Err(e) = cache.save_chunk(coord, &data) {
+                                                     eprintln!("Worker {}: Error saving newly generated chunk {:?}: {}", i, coord, e);
+                                                }
+                                                if gen_tx.send((coord, Some(data))).is_err() { break; }
+                                            } else if gen_tx.send((coord, None)).is_err() { break; }
                                         },
                                         Err(e) => {
                                             eprintln!("Worker {}: Error loading chunk {:?} from cache: {}", i, coord, e);
-                                            let data = wg.generate_chunk_data(coord);
-                                             if let Err(e_save) = cache.save_chunk(coord, &data) {
-                                                 eprintln!("Worker {}: Error saving chunk {:?} after load fail: {}", i, coord, e_save);
-                                            }
-                                            if gen_tx.send((coord, data)).is_err() { break; }
+                                            if should_generate {
+                                                let data = wg.generate_chunk_data(coord);
+                                                 if let Err(e_save) = cache.save_chunk(coord, &data) {
+                                                     eprintln!("Worker {}: Error saving chunk {:?} after load fail: {}", i, coord, e_save);
+                                                }
+                                                if gen_tx.send((coord, Some(data))).is_err() { break; }
+                                            } else if gen_tx.send((coord, None)).is_err() { break; }
                                         }
                                     }
                                 },
@@ -197,12 +209,10 @@ impl WorkerPool {
                                 Err(_) => { break; }
                             },
                             recv(shutdown_rx_clone) -> _ => {
-                                println!("Worker {}: Received shutdown signal, exiting.", i);
                                 break;
                             }
                         }
                     }
-                    println!("Worker thread {} finished.", i);
                 })
                 .expect("Failed to spawn worker thread");
 
@@ -224,15 +234,17 @@ impl WorkerPool {
     }
 
     pub fn shutdown(self) {
-        println!("WorkerPool: Sending shutdown signal...");
+        drop(self.gen_request_rx);
+        drop(self.mesh_request_rx);
+        for _ in 0..self.worker_handles.len() {
+            let _ = self.shutdown_tx.send(());
+        }
         drop(self.shutdown_tx);
 
-        println!("WorkerPool: Joining worker threads...");
         for (i, handle) in self.worker_handles.into_iter().enumerate() {
             if let Err(e) = handle.join() {
                 eprintln!("WorkerPool: Worker thread {} panicked: {:?}", i, e);
             }
         }
-        println!("Worker pool shut down completely.");
     }
 }

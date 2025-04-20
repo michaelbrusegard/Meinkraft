@@ -1,3 +1,4 @@
+use crate::components::CHUNK_WIDTH;
 use glam::{Mat4, Vec3};
 
 #[derive(Clone, Copy, Debug)]
@@ -66,12 +67,11 @@ impl Camera {
         target: Vec3,
         up: Vec3,
         aspect_ratio: f32,
-        render_distance_chunks: i32,
+        far_distance_chunks: i32,
     ) -> Self {
         let fov_y_radians = 70.0f32.to_radians();
         let z_near = 0.1;
-        let z_far =
-            (render_distance_chunks as f32 + 1.0) * (crate::components::CHUNK_WIDTH as f32) * 1.5;
+        let z_far = (far_distance_chunks as f32 + 1.0) * (CHUNK_WIDTH as f32) * 1.5;
 
         let mut camera = Self {
             position,
