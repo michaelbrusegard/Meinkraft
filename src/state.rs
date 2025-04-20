@@ -29,12 +29,27 @@ pub struct GameState {
     pub chunk_cache: ChunkCache,
     pub gen_request_tx: Sender<LoadRequest>,
     pub gen_result_rx: Receiver<LoadResult>,
-    pub mesh_request_tx: Sender<(Entity, ChunkCoord, ChunkData, NeighborData)>,
-    pub mesh_result_rx: Receiver<(Entity, ChunkCoord, Option<Mesh>)>,
+    pub mesh_request_tx: Sender<(
+        Entity,
+        ChunkCoord,
+        ChunkData,
+        NeighborData,
+        crate::components::LOD,
+    )>,
+    pub mesh_result_rx: Receiver<(Entity, ChunkCoord, Option<Mesh>, crate::components::LOD)>,
     gen_request_rx_worker: Option<Receiver<LoadRequest>>,
     gen_result_tx_worker: Option<Sender<LoadResult>>,
-    mesh_request_rx_worker: Option<Receiver<(Entity, ChunkCoord, ChunkData, NeighborData)>>,
-    mesh_result_tx_worker: Option<Sender<(Entity, ChunkCoord, Option<Mesh>)>>,
+    mesh_request_rx_worker: Option<
+        Receiver<(
+            Entity,
+            ChunkCoord,
+            ChunkData,
+            NeighborData,
+            crate::components::LOD,
+        )>,
+    >,
+    mesh_result_tx_worker:
+        Option<Sender<(Entity, ChunkCoord, Option<Mesh>, crate::components::LOD)>>,
     worker_pool: Option<WorkerPool>,
 }
 
@@ -87,10 +102,19 @@ impl GameState {
 
         let (gen_request_tx, gen_request_rx_worker) = crossbeam_channel::unbounded::<LoadRequest>();
         let (gen_result_tx_worker, gen_result_rx) = crossbeam_channel::unbounded::<LoadResult>();
-        let (mesh_request_tx, mesh_request_rx_worker) =
-            crossbeam_channel::unbounded::<(Entity, ChunkCoord, ChunkData, NeighborData)>();
-        let (mesh_result_tx_worker, mesh_result_rx) =
-            crossbeam_channel::unbounded::<(Entity, ChunkCoord, Option<Mesh>)>();
+        let (mesh_request_tx, mesh_request_rx_worker) = crossbeam_channel::unbounded::<(
+            Entity,
+            ChunkCoord,
+            ChunkData,
+            NeighborData,
+            crate::components::LOD,
+        )>();
+        let (mesh_result_tx_worker, mesh_result_rx) = crossbeam_channel::unbounded::<(
+            Entity,
+            ChunkCoord,
+            Option<Mesh>,
+            crate::components::LOD,
+        )>();
 
         let chunk_cache = ChunkCache::new("world").expect("Failed to initialize chunk cache");
 

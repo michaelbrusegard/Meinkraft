@@ -32,6 +32,8 @@ impl SystemScheduler {
     pub fn process_updates_and_requests(&mut self, game_state: &mut GameState) {
         self.chunk_loading_system.update(game_state);
 
+        self.chunk_meshing_system.update_lod_parameters(game_state);
+
         self.chunk_meshing_system
             .process_mesh_results_and_requests(game_state);
     }

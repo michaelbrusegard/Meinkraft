@@ -27,11 +27,13 @@ pub struct WorkerResources {
     pub chunk_cache: ChunkCache,
 }
 
+use crate::components::LOD;
+
 pub struct WorkerChannels {
     pub gen_request_rx: Receiver<LoadRequest>,
-    pub mesh_request_rx: Receiver<(Entity, ChunkCoord, ChunkData, NeighborData)>,
+    pub mesh_request_rx: Receiver<(Entity, ChunkCoord, ChunkData, NeighborData, LOD)>,
     pub gen_result_tx: Sender<LoadResult>,
-    pub mesh_result_tx: Sender<(Entity, ChunkCoord, Option<Mesh>)>,
+    pub mesh_result_tx: Sender<(Entity, ChunkCoord, Option<Mesh>, LOD)>,
 }
 
 #[derive(Clone)]
@@ -113,9 +115,9 @@ pub struct WorkerPool {
     texture_manager_layers: Arc<StdHashMap<String, f32>>,
     chunk_cache: ChunkCache,
     gen_request_rx: Receiver<LoadRequest>,
-    mesh_request_rx: Receiver<(Entity, ChunkCoord, ChunkData, NeighborData)>,
+    mesh_request_rx: Receiver<(Entity, ChunkCoord, ChunkData, NeighborData, LOD)>,
     gen_result_tx: Sender<LoadResult>,
-    mesh_result_tx: Sender<(Entity, ChunkCoord, Option<Mesh>)>,
+    mesh_result_tx: Sender<(Entity, ChunkCoord, Option<Mesh>, LOD)>,
     shutdown_tx: Sender<()>,
     worker_handles: Vec<thread::JoinHandle<()>>,
 }
@@ -194,14 +196,15 @@ impl WorkerPool {
                                 Err(_) => { break; }
                             },
                             recv(mesh_rx) -> msg => match msg {
-                                Ok((entity, coord, chunk_data, neighbors)) => {
+                                Ok((entity, coord, chunk_data, neighbors, lod)) => {
                                     let mesh_result = mg.generate_chunk_mesh(
                                         coord,
                                         &chunk_data,
                                         &neighbors,
                                         &tm_layers,
+                                        lod,
                                     );
-                                    if mesh_tx.send((entity, coord, mesh_result)).is_err() {
+                                    if mesh_tx.send((entity, coord, mesh_result, lod)).is_err() {
                                         break;
                                     }
                                 },

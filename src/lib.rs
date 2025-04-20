@@ -11,6 +11,7 @@ pub mod components {
     mod chunk;
     mod renderable;
     mod transform;
+    mod lod;
 
     pub use block::BlockType;
     pub use chunk::{
@@ -20,6 +21,7 @@ pub mod components {
     };
     pub use renderable::Renderable;
     pub use transform::Transform;
+    pub use lod::LOD;
 }
 
 pub mod resources {
