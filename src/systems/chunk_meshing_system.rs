@@ -2,20 +2,23 @@ use crate::components::{
     chunk_coord_to_world_pos, world_to_chunk_coords, ChunkCoord, ChunkData, ChunkDirty, Renderable,
     Transform, LOD,
 };
-use crate::persistence::NeighborData;
 use crate::resources::ChunkMeshData;
 use crate::state::GameState;
 use fnv::FnvHashSet;
 use hecs::Entity;
 use std::ops::Deref;
 
-type MeshRequest = (Entity, ChunkCoord, ChunkData, NeighborData, LOD, [LOD; 6]);
 type MeshResult = (Entity, ChunkCoord, Option<ChunkMeshData>, LOD);
+
+use crate::state::MeshRequestData;
 
 pub struct ChunkMeshingSystem {
     pending_mesh_requests: FnvHashSet<ChunkCoord>,
     last_camera_chunk_coord_xz: Option<(i32, i32)>,
-    load_distance_sq: i32,
+    lod1_distance_sq: i32,
+    lod2_distance_sq: i32,
+    lod4_distance_sq: i32,
+    lod8_distance_sq: i32,
     render_distance_sq: i32,
 }
 
@@ -24,7 +27,10 @@ impl ChunkMeshingSystem {
         Self {
             pending_mesh_requests: FnvHashSet::default(),
             last_camera_chunk_coord_xz: None,
-            load_distance_sq: 0,
+            lod1_distance_sq: 0,
+            lod2_distance_sq: 0,
+            lod4_distance_sq: 0,
+            lod8_distance_sq: 0,
             render_distance_sq: 0,
         }
     }
@@ -35,9 +41,16 @@ impl ChunkMeshingSystem {
         let cam_chunk_z = world_to_chunk_coords(0, 0, camera_pos.z.floor() as i32).2;
         self.last_camera_chunk_coord_xz = Some((cam_chunk_x, cam_chunk_z));
 
-        let load_dist = game_state.config.load_distance;
+        let lod1_dist = game_state.config.load_distance;
+        let lod2_dist = game_state.config.lod2_distance;
+        let lod4_dist = game_state.config.lod4_distance;
+        let lod8_dist = game_state.config.lod8_distance;
         let render_dist = game_state.config.render_distance;
-        self.load_distance_sq = load_dist * load_dist;
+
+        self.lod1_distance_sq = lod1_dist * lod1_dist;
+        self.lod2_distance_sq = lod2_dist * lod2_dist;
+        self.lod4_distance_sq = lod4_dist * lod4_dist;
+        self.lod8_distance_sq = lod8_dist * lod8_dist;
         self.render_distance_sq = render_dist * render_dist;
     }
 
@@ -45,12 +58,9 @@ impl ChunkMeshingSystem {
         self.process_mesh_results(game_state);
         let (requests_to_send, entities_processed) = self.collect_meshing_requests(game_state);
 
-        for (entity, coord, data, neighbors, required_lod, _neighbor_lods) in requests_to_send {
-            if game_state
-                .mesh_request_tx
-                .send((entity, coord, data, neighbors, required_lod))
-                .is_ok()
-            {
+        for request_data in requests_to_send {
+            let coord = request_data.1;
+            if game_state.mesh_request_tx.send(request_data).is_ok() {
                 self.pending_mesh_requests.insert(coord);
             } else {
                 eprintln!(
@@ -252,8 +262,11 @@ impl ChunkMeshingSystem {
         game_state.mesh_registry.remove_mesh(mesh_id);
     }
 
-    fn collect_meshing_requests(&self, game_state: &GameState) -> (Vec<MeshRequest>, Vec<Entity>) {
-        let mut requests_to_send: Vec<MeshRequest> = Vec::new();
+    fn collect_meshing_requests(
+        &self,
+        game_state: &GameState,
+    ) -> (Vec<MeshRequestData>, Vec<Entity>) {
+        let mut requests_to_send: Vec<MeshRequestData> = Vec::new();
         let mut entities_to_undirty = Vec::new();
 
         let (cam_cx, cam_cz) = match self.last_camera_chunk_coord_xz {
@@ -290,14 +303,17 @@ impl ChunkMeshingSystem {
                 continue;
             }
 
-            let required_lod = if dist_sq <= self.load_distance_sq {
-                LOD::High
+            let required_lod = if dist_sq <= self.lod1_distance_sq {
+                LOD::LOD1
+            } else if dist_sq <= self.lod2_distance_sq {
+                LOD::LOD2
+            } else if dist_sq <= self.lod4_distance_sq {
+                LOD::LOD4
             } else {
-                LOD::Low
+                LOD::LOD8
             };
 
-            let required_neighbor_lods =
-                self.get_neighbor_lods(chunk_coord, cam_cx, cam_cz, game_state);
+            let required_neighbor_lods = self.get_neighbor_lods(chunk_coord, cam_cx, cam_cz);
 
             let mut needs_remesh = false;
 
@@ -354,7 +370,6 @@ impl ChunkMeshingSystem {
                             chunk_data,
                             Box::new(neighbor_data),
                             required_lod,
-                            required_neighbor_lods,
                         ));
                         entities_to_undirty.push(entity);
                     }
@@ -418,13 +433,7 @@ impl ChunkMeshingSystem {
         }
     }
 
-    fn get_neighbor_lods(
-        &self,
-        coord: ChunkCoord,
-        cam_cx: i32,
-        cam_cz: i32,
-        _game_state: &GameState,
-    ) -> [LOD; 6] {
+    fn get_neighbor_lods(&self, coord: ChunkCoord, cam_cx: i32, cam_cz: i32) -> [LOD; 6] {
         let neighbor_offsets = [
             (1, 0, 0),
             (-1, 0, 0),
@@ -433,33 +442,24 @@ impl ChunkMeshingSystem {
             (0, 0, 1),
             (0, 0, -1),
         ];
-        let mut neighbor_lods: [LOD; 6] = [LOD::Low; 6];
+        let mut neighbor_lods: [LOD; 6] = [LOD::LOD8; 6];
 
         for (i, offset) in neighbor_offsets.iter().enumerate() {
-            if offset.1 != 0 {
-                let dx = coord.0 - cam_cx;
-                let dz = coord.2 - cam_cz;
-                let dist_sq = dx * dx + dz * dz;
-                neighbor_lods[i] = if dist_sq <= self.load_distance_sq {
-                    LOD::High
-                } else {
-                    LOD::Low
-                };
-                continue;
-            }
-
             let neighbor_coord =
                 ChunkCoord(coord.0 + offset.0, coord.1 + offset.1, coord.2 + offset.2);
-
             let dx = neighbor_coord.0 - cam_cx;
             let dz = neighbor_coord.2 - cam_cz;
             let dist_sq = dx * dx + dz * dz;
 
-            neighbor_lods[i] = if dist_sq <= self.load_distance_sq {
-                LOD::High
+            neighbor_lods[i] = if dist_sq <= self.lod1_distance_sq {
+                LOD::LOD1
+            } else if dist_sq <= self.lod2_distance_sq {
+                LOD::LOD2
+            } else if dist_sq <= self.lod4_distance_sq {
+                LOD::LOD4
             } else {
-                LOD::Low
-            };
+                LOD::LOD8
+            }
         }
         neighbor_lods
     }

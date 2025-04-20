@@ -1,8 +1,8 @@
 use crate::components::{ChunkCoord, ChunkData};
-use crate::resources::{ChunkMeshData, MeshGenerator, WorldGenerator};
+use crate::resources::{MeshGenerator, WorldGenerator};
+use crate::state::{MeshRequestData, MeshResultData};
 use bincode::config::{standard, Configuration};
 use crossbeam_channel::{Receiver, Sender};
-use hecs::Entity;
 use std::collections::HashMap as StdHashMap;
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Error as IoError, ErrorKind};
@@ -27,13 +27,11 @@ pub struct WorkerResources {
     pub chunk_cache: ChunkCache,
 }
 
-use crate::components::LOD;
-
 pub struct WorkerChannels {
     pub gen_request_rx: Receiver<LoadRequest>,
-    pub mesh_request_rx: Receiver<(Entity, ChunkCoord, ChunkData, NeighborData, LOD)>,
+    pub mesh_request_rx: Receiver<MeshRequestData>,
     pub gen_result_tx: Sender<LoadResult>,
-    pub mesh_result_tx: Sender<(Entity, ChunkCoord, Option<ChunkMeshData>, LOD)>,
+    pub mesh_result_tx: Sender<MeshResultData>,
 }
 
 #[derive(Clone)]
@@ -115,9 +113,9 @@ pub struct WorkerPool {
     texture_manager_layers: Arc<StdHashMap<String, f32>>,
     chunk_cache: ChunkCache,
     gen_request_rx: Receiver<LoadRequest>,
-    mesh_request_rx: Receiver<(Entity, ChunkCoord, ChunkData, NeighborData, LOD)>,
+    mesh_request_rx: Receiver<MeshRequestData>,
     gen_result_tx: Sender<LoadResult>,
-    mesh_result_tx: Sender<(Entity, ChunkCoord, Option<ChunkMeshData>, LOD)>,
+    mesh_result_tx: Sender<MeshResultData>,
     shutdown_tx: Sender<()>,
     worker_handles: Vec<thread::JoinHandle<()>>,
 }

@@ -16,6 +16,9 @@ pub struct Config {
     pub move_speed: f32,
     pub mouse_sensitivity: f32,
     pub load_distance: i32,
+    pub lod2_distance: i32,
+    pub lod4_distance: i32,
+    pub lod8_distance: i32,
     pub render_distance: i32,
     pub world_seed: u32,
 }
@@ -35,7 +38,10 @@ impl Config {
             key_bindings,
             move_speed: 1.0,
             mouse_sensitivity: 0.003,
-            load_distance: 16,
+            load_distance: 12,
+            lod2_distance: 16,
+            lod4_distance: 20,
+            lod8_distance: 22,
             render_distance: 24,
             world_seed: 42069,
         }

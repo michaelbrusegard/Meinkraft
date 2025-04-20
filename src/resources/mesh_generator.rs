@@ -76,12 +76,26 @@ impl MeshGenerator {
 
         let scale_factor = lod.scale_factor();
         let downsample_factor = lod.downsample_factor();
+
+        if CHUNK_WIDTH % downsample_factor != 0
+            || CHUNK_HEIGHT % downsample_factor != 0
+            || CHUNK_DEPTH % downsample_factor != 0
+        {
+            eprintln!("Warning: Chunk dimensions ({},{},{}) not divisible by downsample factor {} for LOD {:?}. Skipping mesh generation for {:?}.",
+                CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH, downsample_factor, lod, chunk_coord);
+            return None;
+        }
+
         let effective_width = CHUNK_WIDTH / downsample_factor;
         let effective_height = CHUNK_HEIGHT / downsample_factor;
         let effective_depth = CHUNK_DEPTH / downsample_factor;
 
         let downsampled_data;
         let data_to_mesh: &dyn EffectiveBlockDataSource = if downsample_factor > 1 {
+            if effective_width == 0 || effective_height == 0 || effective_depth == 0 {
+                eprintln!("Warning: Effective dimensions are zero after downsampling for LOD {:?} in chunk {:?}. Skipping.", lod, chunk_coord);
+                return None;
+            }
             downsampled_data = self.downsample_chunk(chunk_data, downsample_factor);
             &downsampled_data
         } else {
@@ -442,7 +456,7 @@ impl MeshGenerator {
         let scale = params.scale;
         let half_scale = scale / 2.0;
 
-        let uv = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+        let uv = [[0.0, 0.0], [scale, 0.0], [scale, scale], [0.0, scale]];
 
         let p = [
             [cx - half_scale, cy - half_scale, cz - half_scale], // 0: Back-Bottom-Left

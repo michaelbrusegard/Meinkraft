@@ -1,5 +1,6 @@
 use crate::components::{
     world_to_chunk_coords, world_to_local_coords, BlockType, ChunkCoord, ChunkData, ChunkModified,
+    LOD,
 };
 use crate::persistence::{
     ChunkCache, LoadRequest, LoadResult, NeighborData, WorkerChannels, WorkerPool, WorkerResources,
@@ -14,19 +15,8 @@ use glam::Vec3;
 use hecs::{Entity, World};
 use std::sync::Arc;
 
-pub type MeshRequestData = (
-    Entity,
-    ChunkCoord,
-    ChunkData,
-    NeighborData,
-    crate::components::LOD,
-);
-pub type MeshResultData = (
-    Entity,
-    ChunkCoord,
-    Option<ChunkMeshData>,
-    crate::components::LOD,
-);
+pub type MeshRequestData = (Entity, ChunkCoord, ChunkData, NeighborData, LOD);
+pub type MeshResultData = (Entity, ChunkCoord, Option<ChunkMeshData>, LOD);
 
 pub struct GameState {
     pub config: Config,
