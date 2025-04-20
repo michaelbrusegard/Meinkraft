@@ -1,7 +1,7 @@
 use crate::components::{
     BlockType, ChunkCoord, ChunkData, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH, LOD,
 };
-use crate::resources::Mesh;
+use crate::resources::{ChunkMeshData, Mesh};
 use std::collections::HashMap;
 
 trait EffectiveBlockDataSource {
@@ -65,10 +65,14 @@ impl MeshGenerator {
         neighbors: &[Option<ChunkData>; 6],
         texture_layers: &HashMap<String, f32>,
         lod: LOD,
-    ) -> Option<Mesh> {
-        let mut vertices: Vec<f32> = Vec::new();
-        let mut indices: Vec<u32> = Vec::new();
-        let mut index_offset: u32 = 0;
+    ) -> Option<ChunkMeshData> {
+        let mut opaque_vertices: Vec<f32> = Vec::new();
+        let mut opaque_indices: Vec<u32> = Vec::new();
+        let mut opaque_index_offset: u32 = 0;
+
+        let mut transparent_vertices: Vec<f32> = Vec::new();
+        let mut transparent_indices: Vec<u32> = Vec::new();
+        let mut transparent_index_offset: u32 = 0;
 
         let scale_factor = lod.scale_factor();
         let downsample_factor = lod.downsample_factor();
@@ -79,7 +83,7 @@ impl MeshGenerator {
         let downsampled_data;
         let data_to_mesh: &dyn EffectiveBlockDataSource = if downsample_factor > 1 {
             downsampled_data = self.downsample_chunk(chunk_data, downsample_factor);
-            &downsampled_data // Use the downsampled Vec<BlockType>
+            &downsampled_data
         } else {
             chunk_data
         };
@@ -154,10 +158,13 @@ impl MeshGenerator {
                             )
                         };
 
-                        let should_draw_face = if current_block_type.is_water() {
-                            neighbor_block_type == BlockType::Air
-                        } else {
-                            !neighbor_block_type.is_culled_by()
+                        let should_draw_face = match neighbor_block_type {
+                            BlockType::Air => true,
+                            neighbor if !neighbor.is_culled_by() => {
+                                current_block_type.is_culled_by()
+                                    || current_block_type != neighbor_block_type
+                            }
+                            _ => !current_block_type.is_culled_by(),
                         };
 
                         if should_draw_face {
@@ -177,6 +184,22 @@ impl MeshGenerator {
                                 &0.0
                             });
 
+                            let is_transparent = !current_block_type.is_culled_by();
+                            let (target_vertices, target_indices, target_index_offset) =
+                                if is_transparent {
+                                    (
+                                        &mut transparent_vertices,
+                                        &mut transparent_indices,
+                                        &mut transparent_index_offset,
+                                    )
+                                } else {
+                                    (
+                                        &mut opaque_vertices,
+                                        &mut opaque_indices,
+                                        &mut opaque_index_offset,
+                                    )
+                                };
+
                             Self::add_scaled_face(
                                 FaceParams {
                                     position: [pos_x, pos_y, pos_z],
@@ -184,9 +207,9 @@ impl MeshGenerator {
                                     layer_index,
                                     scale: scale_factor,
                                 },
-                                &mut vertices,
-                                &mut indices,
-                                &mut index_offset,
+                                target_vertices,
+                                target_indices,
+                                target_index_offset,
                             );
                         }
                     }
@@ -194,10 +217,31 @@ impl MeshGenerator {
             }
         }
 
-        if vertices.is_empty() {
-            None
+        let opaque_mesh = if !opaque_vertices.is_empty() {
+            Some(Mesh {
+                vertices: opaque_vertices,
+                indices: opaque_indices,
+            })
         } else {
-            Some(Mesh { vertices, indices })
+            None
+        };
+
+        let transparent_mesh = if !transparent_vertices.is_empty() {
+            Some(Mesh {
+                vertices: transparent_vertices,
+                indices: transparent_indices,
+            })
+        } else {
+            None
+        };
+
+        if opaque_mesh.is_some() || transparent_mesh.is_some() {
+            Some(ChunkMeshData {
+                opaque: opaque_mesh,
+                transparent: transparent_mesh,
+            })
+        } else {
+            None
         }
     }
 

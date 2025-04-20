@@ -5,14 +5,28 @@ use crate::persistence::{
     ChunkCache, LoadRequest, LoadResult, NeighborData, WorkerChannels, WorkerPool, WorkerResources,
 };
 use crate::resources::{
-    Camera, Config, InputState, Mesh, MeshGenerator, MeshRegistry, Renderer, ShaderProgram,
-    TextureManager, WorldGenerator,
+    Camera, ChunkMeshData, Config, InputState, MeshGenerator, MeshRegistry, Renderer,
+    ShaderProgram, TextureManager, WorldGenerator,
 };
 use crossbeam_channel::{Receiver, Sender};
 use fnv::FnvHashMap;
 use glam::Vec3;
 use hecs::{Entity, World};
 use std::sync::Arc;
+
+pub type MeshRequestData = (
+    Entity,
+    ChunkCoord,
+    ChunkData,
+    NeighborData,
+    crate::components::LOD,
+);
+pub type MeshResultData = (
+    Entity,
+    ChunkCoord,
+    Option<ChunkMeshData>,
+    crate::components::LOD,
+);
 
 pub struct GameState {
     pub config: Config,
@@ -29,27 +43,12 @@ pub struct GameState {
     pub chunk_cache: ChunkCache,
     pub gen_request_tx: Sender<LoadRequest>,
     pub gen_result_rx: Receiver<LoadResult>,
-    pub mesh_request_tx: Sender<(
-        Entity,
-        ChunkCoord,
-        ChunkData,
-        NeighborData,
-        crate::components::LOD,
-    )>,
-    pub mesh_result_rx: Receiver<(Entity, ChunkCoord, Option<Mesh>, crate::components::LOD)>,
+    pub mesh_request_tx: Sender<MeshRequestData>,
+    pub mesh_result_rx: Receiver<MeshResultData>,
     gen_request_rx_worker: Option<Receiver<LoadRequest>>,
     gen_result_tx_worker: Option<Sender<LoadResult>>,
-    mesh_request_rx_worker: Option<
-        Receiver<(
-            Entity,
-            ChunkCoord,
-            ChunkData,
-            NeighborData,
-            crate::components::LOD,
-        )>,
-    >,
-    mesh_result_tx_worker:
-        Option<Sender<(Entity, ChunkCoord, Option<Mesh>, crate::components::LOD)>>,
+    mesh_request_rx_worker: Option<Receiver<MeshRequestData>>,
+    mesh_result_tx_worker: Option<Sender<MeshResultData>>,
     worker_pool: Option<WorkerPool>,
 }
 
@@ -102,19 +101,10 @@ impl GameState {
 
         let (gen_request_tx, gen_request_rx_worker) = crossbeam_channel::unbounded::<LoadRequest>();
         let (gen_result_tx_worker, gen_result_rx) = crossbeam_channel::unbounded::<LoadResult>();
-        let (mesh_request_tx, mesh_request_rx_worker) = crossbeam_channel::unbounded::<(
-            Entity,
-            ChunkCoord,
-            ChunkData,
-            NeighborData,
-            crate::components::LOD,
-        )>();
-        let (mesh_result_tx_worker, mesh_result_rx) = crossbeam_channel::unbounded::<(
-            Entity,
-            ChunkCoord,
-            Option<Mesh>,
-            crate::components::LOD,
-        )>();
+        let (mesh_request_tx, mesh_request_rx_worker) =
+            crossbeam_channel::unbounded::<MeshRequestData>();
+        let (mesh_result_tx_worker, mesh_result_rx) =
+            crossbeam_channel::unbounded::<MeshResultData>();
 
         let chunk_cache = ChunkCache::new("world").expect("Failed to initialize chunk cache");
 

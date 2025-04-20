@@ -9,9 +9,9 @@ mod window;
 pub mod components {
     mod block;
     mod chunk;
+    mod lod;
     mod renderable;
     mod transform;
-    mod lod;
 
     pub use block::BlockType;
     pub use chunk::{
@@ -19,9 +19,9 @@ pub mod components {
         world_to_local_coords, ChunkCoord, ChunkData, ChunkDirty, ChunkModified, CHUNK_DEPTH,
         CHUNK_EXTENTS, CHUNK_HEIGHT, CHUNK_SIZE, CHUNK_WIDTH, MAX_CHUNK_Y, MIN_CHUNK_Y,
     };
+    pub use lod::LOD;
     pub use renderable::Renderable;
     pub use transform::Transform;
-    pub use lod::LOD;
 }
 
 pub mod resources {
@@ -38,7 +38,7 @@ pub mod resources {
     pub use camera::Camera;
     pub use config::{Config, GameAction};
     pub use input_state::InputState;
-    pub use mesh::{Mesh, MeshRegistry};
+    pub use mesh::{ChunkMeshData, Mesh, MeshRegistry};
     pub use mesh_generator::MeshGenerator;
     pub use renderer::Renderer;
     pub use shader_program::ShaderProgram;

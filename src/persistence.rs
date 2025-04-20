@@ -1,5 +1,5 @@
 use crate::components::{ChunkCoord, ChunkData};
-use crate::resources::{Mesh, MeshGenerator, WorldGenerator};
+use crate::resources::{ChunkMeshData, MeshGenerator, WorldGenerator};
 use bincode::config::{standard, Configuration};
 use crossbeam_channel::{Receiver, Sender};
 use hecs::Entity;
@@ -33,7 +33,7 @@ pub struct WorkerChannels {
     pub gen_request_rx: Receiver<LoadRequest>,
     pub mesh_request_rx: Receiver<(Entity, ChunkCoord, ChunkData, NeighborData, LOD)>,
     pub gen_result_tx: Sender<LoadResult>,
-    pub mesh_result_tx: Sender<(Entity, ChunkCoord, Option<Mesh>, LOD)>,
+    pub mesh_result_tx: Sender<(Entity, ChunkCoord, Option<ChunkMeshData>, LOD)>,
 }
 
 #[derive(Clone)]
@@ -117,7 +117,7 @@ pub struct WorkerPool {
     gen_request_rx: Receiver<LoadRequest>,
     mesh_request_rx: Receiver<(Entity, ChunkCoord, ChunkData, NeighborData, LOD)>,
     gen_result_tx: Sender<LoadResult>,
-    mesh_result_tx: Sender<(Entity, ChunkCoord, Option<Mesh>, LOD)>,
+    mesh_result_tx: Sender<(Entity, ChunkCoord, Option<ChunkMeshData>, LOD)>,
     shutdown_tx: Sender<()>,
     worker_handles: Vec<thread::JoinHandle<()>>,
 }

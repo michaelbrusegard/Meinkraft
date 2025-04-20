@@ -24,13 +24,14 @@ pub enum BlockType {
 
 impl BlockType {
     pub fn is_culled_by(&self) -> bool {
-        match self {
-            BlockType::Air => false,
-            BlockType::Water => false,
-            BlockType::Glass => false,
-            BlockType::Leaves => false,
-            _ => true,
-        }
+        !matches!(
+            self,
+            BlockType::Air
+                | BlockType::Water
+                | BlockType::Ice
+                | BlockType::Glass
+                | BlockType::Leaves
+        )
     }
 
     pub fn is_water(&self) -> bool {

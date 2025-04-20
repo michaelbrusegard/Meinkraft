@@ -6,6 +6,12 @@ pub struct Mesh {
     pub indices: Vec<u32>,
 }
 
+#[derive(Clone, Default)]
+pub struct ChunkMeshData {
+    pub opaque: Option<Mesh>,
+    pub transparent: Option<Mesh>,
+}
+
 pub struct MeshRegistry {
     pub meshes: FnvHashMap<usize, Mesh>,
     next_mesh_id: usize,

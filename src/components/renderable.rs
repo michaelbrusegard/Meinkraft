@@ -1,9 +1,14 @@
+#[derive(Default)]
 pub struct Renderable {
-    pub mesh_id: usize,
+    pub opaque_mesh_id: Option<usize>,
+    pub transparent_mesh_id: Option<usize>,
 }
 
 impl Renderable {
-    pub fn new(mesh_id: usize) -> Self {
-        Self { mesh_id }
+    pub fn new(opaque_mesh_id: Option<usize>, transparent_mesh_id: Option<usize>) -> Self {
+        Self {
+            opaque_mesh_id,
+            transparent_mesh_id,
+        }
     }
 }

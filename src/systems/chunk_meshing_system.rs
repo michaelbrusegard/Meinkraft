@@ -3,14 +3,14 @@ use crate::components::{
     Transform, LOD,
 };
 use crate::persistence::NeighborData;
-use crate::resources::Mesh;
+use crate::resources::ChunkMeshData;
 use crate::state::GameState;
 use fnv::FnvHashSet;
 use hecs::Entity;
 use std::ops::Deref;
 
 type MeshRequest = (Entity, ChunkCoord, ChunkData, NeighborData, LOD, [LOD; 6]);
-type MeshResult = (Entity, ChunkCoord, Option<Mesh>, LOD);
+type MeshResult = (Entity, ChunkCoord, Option<ChunkMeshData>, LOD);
 
 pub struct ChunkMeshingSystem {
     pending_mesh_requests: FnvHashSet<ChunkCoord>,
@@ -75,43 +75,97 @@ impl ChunkMeshingSystem {
     fn process_mesh_results(&mut self, game_state: &mut GameState) {
         let results_to_process: Vec<MeshResult> = game_state.mesh_result_rx.try_iter().collect();
 
-        for (entity, coord, maybe_mesh, generated_lod) in results_to_process {
+        for (entity, coord, maybe_chunk_mesh_data, generated_lod) in results_to_process {
             self.pending_mesh_requests.remove(&coord);
 
             if !game_state.world.contains(entity) {
                 continue;
             }
 
-            let existing_mesh_id = game_state
-                .world
-                .get::<&Renderable>(entity)
-                .map(|r| r.mesh_id)
-                .ok();
+            let (existing_opaque_id, existing_transparent_id) =
+                match game_state.world.get::<&Renderable>(entity) {
+                    Ok(r) => (r.opaque_mesh_id, r.transparent_mesh_id),
+                    Err(_) => (None, None),
+                };
 
-            match maybe_mesh {
-                Some(mesh) => {
-                    let new_mesh_id = match existing_mesh_id {
-                        Some(id) => {
-                            game_state
-                                .mesh_registry
-                                .update_mesh(id, mesh.vertices, mesh.indices)
+            let mut final_opaque_mesh_id: Option<usize> = None;
+            let mut final_transparent_mesh_id: Option<usize> = None;
+            let mut needs_component_update = false;
+
+            match maybe_chunk_mesh_data {
+                Some(chunk_mesh_data) => {
+                    match chunk_mesh_data.opaque {
+                        Some(mesh) => {
+                            let new_id = Self::register_or_update_mesh(
+                                game_state,
+                                existing_opaque_id,
+                                mesh.vertices,
+                                mesh.indices,
+                            );
+                            if Self::upload_mesh_buffers(game_state, new_id) {
+                                final_opaque_mesh_id = Some(new_id);
+                                needs_component_update = true;
+                                if let Some(old_id) = existing_opaque_id {
+                                    if old_id != new_id {
+                                        Self::cleanup_mesh_resources(game_state, old_id);
+                                    }
+                                }
+                            } else {
+                                Self::cleanup_mesh_resources(game_state, new_id);
+                                if let Some(old_id) = existing_opaque_id {
+                                    Self::cleanup_mesh_resources(game_state, old_id);
+                                }
+                            }
                         }
-                        None => game_state
-                            .mesh_registry
-                            .register_mesh(mesh.vertices, mesh.indices),
-                    };
+                        None => {
+                            if let Some(old_id) = existing_opaque_id {
+                                Self::cleanup_mesh_resources(game_state, old_id);
+                                needs_component_update = true;
+                            }
+                        }
+                    }
 
-                    if let Some(mesh_data) = game_state.mesh_registry.meshes.get(&new_mesh_id) {
-                        game_state.renderer.upload_mesh_buffers(
-                            new_mesh_id,
-                            &mesh_data.vertices,
-                            &mesh_data.indices,
-                        );
+                    match chunk_mesh_data.transparent {
+                        Some(mesh) => {
+                            let new_id = Self::register_or_update_mesh(
+                                game_state,
+                                existing_transparent_id,
+                                mesh.vertices,
+                                mesh.indices,
+                            );
+                            if Self::upload_mesh_buffers(game_state, new_id) {
+                                final_transparent_mesh_id = Some(new_id);
+                                needs_component_update = true;
+                                if let Some(old_id) = existing_transparent_id {
+                                    if old_id != new_id {
+                                        Self::cleanup_mesh_resources(game_state, old_id);
+                                    }
+                                }
+                            } else {
+                                Self::cleanup_mesh_resources(game_state, new_id);
+                                if let Some(old_id) = existing_transparent_id {
+                                    Self::cleanup_mesh_resources(game_state, old_id);
+                                }
+                            }
+                        }
+                        None => {
+                            if let Some(old_id) = existing_transparent_id {
+                                Self::cleanup_mesh_resources(game_state, old_id);
+                                needs_component_update = true;
+                            }
+                        }
+                    }
 
+                    if needs_component_update
+                        || final_opaque_mesh_id.is_some()
+                        || final_transparent_mesh_id.is_some()
+                    {
                         let world_pos = chunk_coord_to_world_pos(coord);
+                        let new_renderable =
+                            Renderable::new(final_opaque_mesh_id, final_transparent_mesh_id);
                         let components = (
                             Transform::new(world_pos, glam::Vec3::ZERO, glam::Vec3::ONE),
-                            Renderable::new(new_mesh_id),
+                            new_renderable,
                             generated_lod,
                         );
 
@@ -120,30 +174,76 @@ impl ChunkMeshingSystem {
                                 "Failed to insert render components for {:?} at {:?}: {}",
                                 entity, coord, e
                             );
-                            Self::cleanup_mesh_resources(game_state, new_mesh_id);
+                            if let Some(id) = final_opaque_mesh_id {
+                                Self::cleanup_mesh_resources(game_state, id);
+                            }
+                            if let Some(id) = final_transparent_mesh_id {
+                                Self::cleanup_mesh_resources(game_state, id);
+                            }
                         }
-                    } else {
-                        eprintln!(
-                            "Mesh data missing in registry after register/update for ID {}",
-                            new_mesh_id
-                        );
-                    }
-                }
-                None => {
-                    if let Some(id_to_remove) = existing_mesh_id {
+                    } else if final_opaque_mesh_id.is_none() && final_transparent_mesh_id.is_none()
+                    {
                         if let Err(e) = game_state
                             .world
                             .remove::<(Transform, Renderable, LOD)>(entity)
                         {
                             eprintln!(
-                                "Failed to remove render components (including LOD) for {:?} at {:?}: {}",
+                                "Failed to remove components for empty chunk {:?} at {:?}: {}",
                                 entity, coord, e
                             );
                         }
-                        Self::cleanup_mesh_resources(game_state, id_to_remove);
                     }
                 }
+                None => {
+                    let mut opaque_id_to_remove: Option<usize> = None;
+                    let mut transparent_id_to_remove: Option<usize> = None;
+
+                    if let Ok(renderable_ref) = game_state.world.get::<&Renderable>(entity) {
+                        opaque_id_to_remove = renderable_ref.opaque_mesh_id;
+                        transparent_id_to_remove = renderable_ref.transparent_mesh_id;
+                    }
+
+                    if let Some(id) = opaque_id_to_remove {
+                        Self::cleanup_mesh_resources(game_state, id);
+                    }
+                    if let Some(id) = transparent_id_to_remove {
+                        Self::cleanup_mesh_resources(game_state, id);
+                    }
+
+                    let _ = game_state
+                        .world
+                        .remove::<(Transform, Renderable, LOD)>(entity);
+                }
             }
+        }
+    }
+
+    fn register_or_update_mesh(
+        game_state: &mut GameState,
+        existing_id: Option<usize>,
+        vertices: Vec<f32>,
+        indices: Vec<u32>,
+    ) -> usize {
+        match existing_id {
+            Some(id) => game_state.mesh_registry.update_mesh(id, vertices, indices),
+            None => game_state.mesh_registry.register_mesh(vertices, indices),
+        }
+    }
+
+    fn upload_mesh_buffers(game_state: &mut GameState, mesh_id: usize) -> bool {
+        if let Some(mesh_data) = game_state.mesh_registry.meshes.get(&mesh_id) {
+            game_state.renderer.upload_mesh_buffers(
+                mesh_id,
+                &mesh_data.vertices,
+                &mesh_data.indices,
+            );
+            true
+        } else {
+            eprintln!(
+                "Mesh data missing in registry after register/update for ID {}",
+                mesh_id
+            );
+            false
         }
     }
 

@@ -107,7 +107,8 @@ impl ChunkLoadingSystem {
             entity: Entity,
             coord: ChunkCoord,
             data_to_save: Option<ChunkData>,
-            mesh_id_to_remove: Option<usize>,
+            opaque_mesh_id_to_remove: Option<usize>,
+            transparent_mesh_id_to_remove: Option<usize>,
         }
         let mut unload_infos = Vec::new();
 
@@ -126,17 +127,19 @@ impl ChunkLoadingSystem {
                         }
                     }
 
-                    let mesh_id_to_remove = game_state
-                        .world
-                        .get::<&Renderable>(entity)
-                        .map(|r| r.mesh_id)
-                        .ok();
+                    // Get both opaque and transparent mesh IDs for cleanup
+                    let (opaque_id, transparent_id) =
+                        match game_state.world.get::<&Renderable>(entity) {
+                            Ok(r) => (r.opaque_mesh_id, r.transparent_mesh_id),
+                            Err(_) => (None, None),
+                        };
 
                     unload_infos.push(UnloadInfo {
                         entity,
                         coord,
                         data_to_save,
-                        mesh_id_to_remove,
+                        opaque_mesh_id_to_remove: opaque_id,
+                        transparent_mesh_id_to_remove: transparent_id,
                     });
                 } else {
                     game_state.chunk_entity_map.remove(&coord);
@@ -155,7 +158,12 @@ impl ChunkLoadingSystem {
                 }
             }
 
-            if let Some(mesh_id) = info.mesh_id_to_remove {
+            // Cleanup both opaque and transparent meshes
+            if let Some(mesh_id) = info.opaque_mesh_id_to_remove {
+                game_state.renderer.cleanup_mesh_buffers(mesh_id);
+                game_state.mesh_registry.remove_mesh(mesh_id);
+            }
+            if let Some(mesh_id) = info.transparent_mesh_id_to_remove {
                 game_state.renderer.cleanup_mesh_buffers(mesh_id);
                 game_state.mesh_registry.remove_mesh(mesh_id);
             }
