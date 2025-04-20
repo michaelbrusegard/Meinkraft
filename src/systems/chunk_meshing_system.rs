@@ -45,7 +45,7 @@ impl ChunkMeshingSystem {
         self.process_mesh_results(game_state);
         let (requests_to_send, entities_processed) = self.collect_meshing_requests(game_state);
 
-        for (entity, coord, data, neighbors, required_lod, neighbor_lods) in requests_to_send {
+        for (entity, coord, data, neighbors, required_lod, _neighbor_lods) in requests_to_send {
             if game_state
                 .mesh_request_tx
                 .send((entity, coord, data, neighbors, required_lod))
@@ -62,19 +62,18 @@ impl ChunkMeshingSystem {
         }
 
         for entity in entities_processed {
-            if game_state.world.contains(entity) {
-                if game_state.world.get::<&ChunkDirty>(entity).is_ok() {
-                    if let Err(e) = game_state.world.remove_one::<ChunkDirty>(entity) {
-                        eprintln!("Failed to remove ChunkDirty tag for {:?}: {}", entity, e);
-                    }
+            if game_state.world.contains(entity)
+                && game_state.world.get::<&ChunkDirty>(entity).is_ok()
+            {
+                if let Err(e) = game_state.world.remove_one::<ChunkDirty>(entity) {
+                    eprintln!("Failed to remove ChunkDirty tag for {:?}: {}", entity, e);
                 }
             }
         }
     }
 
     fn process_mesh_results(&mut self, game_state: &mut GameState) {
-        let results_to_process: Vec<MeshResult> = // Use the type alias for clarity
-            game_state.mesh_result_rx.try_iter().collect();
+        let results_to_process: Vec<MeshResult> = game_state.mesh_result_rx.try_iter().collect();
 
         for (entity, coord, maybe_mesh, generated_lod) in results_to_process {
             self.pending_mesh_requests.remove(&coord);
@@ -141,7 +140,7 @@ impl ChunkMeshingSystem {
                                 entity, coord, e
                             );
                         }
-                        Self::cleanup_mesh_resources(game_state, id_to_remove); // Use Self::
+                        Self::cleanup_mesh_resources(game_state, id_to_remove);
                     }
                 }
             }
@@ -206,10 +205,8 @@ impl ChunkMeshingSystem {
                 needs_remesh = true;
             }
 
-            if !needs_remesh {
-                if current_lod.map_or(true, |current| current != required_lod) {
-                    needs_remesh = true;
-                }
+            if !needs_remesh && current_lod.is_none_or(|n_curr| n_curr != required_lod) {
+                needs_remesh = true;
             }
 
             if !needs_remesh {
@@ -240,8 +237,7 @@ impl ChunkMeshingSystem {
                                 .map(|lod_ref| *lod_ref)
                         });
 
-                    if neighbor_current_lod
-                        .map_or(true, |n_curr| n_curr != required_neighbor_lods[i])
+                    if neighbor_current_lod.is_none_or(|n_curr| n_curr != required_neighbor_lods[i])
                     {
                         needs_remesh = true;
                         break;
@@ -278,6 +274,8 @@ impl ChunkMeshingSystem {
         coord: ChunkCoord,
         game_state: &GameState,
     ) -> Option<[Option<ChunkData>; 6]> {
+        use crate::components::{MAX_CHUNK_Y, MIN_CHUNK_Y};
+
         let neighbor_offsets = [
             (1, 0, 0),
             (-1, 0, 0),
@@ -287,23 +285,37 @@ impl ChunkMeshingSystem {
             (0, 0, -1),
         ];
         let mut neighbor_data: [Option<ChunkData>; 6] = Default::default();
+        let mut all_required_neighbors_present = true;
 
         for (i, offset) in neighbor_offsets.iter().enumerate() {
             let neighbor_coord =
                 ChunkCoord(coord.0 + offset.0, coord.1 + offset.1, coord.2 + offset.2);
 
-            if let Some(neighbor_entity) = game_state.chunk_entity_map.get(&neighbor_coord) {
-                match game_state.world.get::<&ChunkData>(*neighbor_entity) {
-                    Ok(data_ref) => {
-                        neighbor_data[i] = Some(data_ref.deref().clone());
+            if neighbor_coord.1 >= MIN_CHUNK_Y && neighbor_coord.1 <= MAX_CHUNK_Y {
+                if let Some(neighbor_entity) = game_state.chunk_entity_map.get(&neighbor_coord) {
+                    match game_state.world.get::<&ChunkData>(*neighbor_entity) {
+                        Ok(data_ref) => {
+                            neighbor_data[i] = Some(data_ref.deref().clone());
+                        }
+                        Err(_) => {
+                            all_required_neighbors_present = false;
+                            break;
+                        }
                     }
-                    Err(_) => return None,
+                } else {
+                    all_required_neighbors_present = false;
+                    break;
                 }
             } else {
-                return None;
+                neighbor_data[i] = None;
             }
         }
-        Some(neighbor_data)
+
+        if all_required_neighbors_present {
+            Some(neighbor_data)
+        } else {
+            None
+        }
     }
 
     fn get_neighbor_lods(

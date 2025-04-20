@@ -23,8 +23,18 @@ pub enum BlockType {
 }
 
 impl BlockType {
-    pub fn is_solid(&self) -> bool {
-        !matches!(self, BlockType::Air)
+    pub fn is_culled_by(&self) -> bool {
+        match self {
+            BlockType::Air => false,
+            BlockType::Water => false,
+            BlockType::Glass => false,
+            BlockType::Leaves => false,
+            _ => true,
+        }
+    }
+
+    pub fn is_water(&self) -> bool {
+        matches!(self, BlockType::Water)
     }
 
     pub fn get_face_textures(&self) -> Option<[&'static str; 6]> {

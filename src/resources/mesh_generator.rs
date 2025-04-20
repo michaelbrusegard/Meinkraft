@@ -4,10 +4,45 @@ use crate::components::{
 use crate::resources::Mesh;
 use std::collections::HashMap;
 
-const DOWNSAMPLE_FACTOR: usize = 2;
-const LOW_RES_WIDTH: usize = CHUNK_WIDTH / DOWNSAMPLE_FACTOR;
-const LOW_RES_HEIGHT: usize = CHUNK_HEIGHT / DOWNSAMPLE_FACTOR;
-const LOW_RES_DEPTH: usize = CHUNK_DEPTH / DOWNSAMPLE_FACTOR;
+trait EffectiveBlockDataSource {
+    fn get_effective_block(
+        &self,
+        x: usize,
+        y: usize,
+        z: usize,
+        eff_w: usize,
+        eff_d: usize,
+    ) -> BlockType;
+}
+
+impl EffectiveBlockDataSource for ChunkData {
+    #[inline]
+    fn get_effective_block(
+        &self,
+        x: usize,
+        y: usize,
+        z: usize,
+        _eff_w: usize,
+        _eff_d: usize,
+    ) -> BlockType {
+        self.get_block(x, y, z)
+    }
+}
+
+impl EffectiveBlockDataSource for Vec<BlockType> {
+    #[inline]
+    fn get_effective_block(
+        &self,
+        x: usize,
+        y: usize,
+        z: usize,
+        eff_w: usize,
+        eff_d: usize,
+    ) -> BlockType {
+        let index = x + z * eff_w + y * eff_w * eff_d;
+        *self.get(index).unwrap_or(&BlockType::Air)
+    }
+}
 
 struct FaceParams {
     position: [f32; 3],
@@ -31,33 +66,36 @@ impl MeshGenerator {
         texture_layers: &HashMap<String, f32>,
         lod: LOD,
     ) -> Option<Mesh> {
-        match lod {
-            LOD::High => {
-                self.generate_high_lod_mesh(chunk_coord, chunk_data, neighbors, texture_layers)
-            }
-            LOD::Low => {
-                self.generate_low_lod_mesh(chunk_coord, chunk_data, neighbors, texture_layers)
-            }
-        }
-    }
-
-    fn generate_high_lod_mesh(
-        &self,
-        chunk_coord: ChunkCoord,
-        chunk_data: &ChunkData,
-        neighbors: &[Option<ChunkData>; 6],
-        texture_layers: &HashMap<String, f32>,
-    ) -> Option<Mesh> {
         let mut vertices: Vec<f32> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
         let mut index_offset: u32 = 0;
 
-        for y in 0..CHUNK_HEIGHT {
-            for z in 0..CHUNK_DEPTH {
-                for x in 0..CHUNK_WIDTH {
-                    let current_block_type = chunk_data.get_block(x, y, z);
+        let scale_factor = lod.scale_factor();
+        let downsample_factor = lod.downsample_factor();
+        let effective_width = CHUNK_WIDTH / downsample_factor;
+        let effective_height = CHUNK_HEIGHT / downsample_factor;
+        let effective_depth = CHUNK_DEPTH / downsample_factor;
 
-                    if current_block_type == BlockType::Air || !current_block_type.is_solid() {
+        let downsampled_data;
+        let data_to_mesh: &dyn EffectiveBlockDataSource = if downsample_factor > 1 {
+            downsampled_data = self.downsample_chunk(chunk_data, downsample_factor);
+            &downsampled_data // Use the downsampled Vec<BlockType>
+        } else {
+            chunk_data
+        };
+
+        for ey in 0..effective_height {
+            for ez in 0..effective_depth {
+                for ex in 0..effective_width {
+                    let current_block_type = data_to_mesh.get_effective_block(
+                        ex,
+                        ey,
+                        ez,
+                        effective_width,
+                        effective_depth,
+                    );
+
+                    if current_block_type == BlockType::Air {
                         continue;
                     }
 
@@ -66,150 +104,85 @@ impl MeshGenerator {
                         None => continue,
                     };
 
-                    let x_usize = x;
-                    let y_usize = y;
-                    let z_usize = z;
-
                     for face_index in 0..6 {
-                        let (nx, ny, nz) =
-                            Self::get_neighbor_coords(x_usize, y_usize, z_usize, face_index);
+                        let (nex, ney, nez) =
+                            Self::get_effective_neighbor_coords(ex, ey, ez, face_index);
 
-                        let mut should_draw_face = false;
-                        if nx < 0
-                            || nx >= CHUNK_WIDTH as i32
-                            || ny < 0
-                            || ny >= CHUNK_HEIGHT as i32
-                            || nz < 0
-                            || nz >= CHUNK_DEPTH as i32
+                        let neighbor_block_type = if nex < 0
+                            || nex >= effective_width as i32
+                            || ney < 0
+                            || ney >= effective_height as i32
+                            || nez < 0
+                            || nez >= effective_depth as i32
                         {
-                            should_draw_face = true;
-                        } else {
-                            let neighbor_block_type =
-                                chunk_data.get_block(nx as usize, ny as usize, nz as usize);
-                            if !neighbor_block_type.is_solid() {
-                                should_draw_face = true;
-                            }
-                        }
-
-                        if should_draw_face {
-                            let texture_name = face_textures[Self::face_texture_index(face_index)];
-                            let layer_index = match texture_layers.get(texture_name) {
-                                Some(layer) => *layer,
-                                None => {
-                                    eprintln!(
-                                        "Warning: Layer index not found for texture '{}' at chunk {:?}, block ({},{},{}), LOD: High",
-                                        texture_name, chunk_coord, x, y, z
+                            let neighbor_chunk_index = Self::face_to_neighbor_index(face_index);
+                            match &neighbors[neighbor_chunk_index] {
+                                Some(neighbor_chunk_data) => {
+                                    let (nnex, nney, nnez) = Self::wrap_effective_neighbor_coords(
+                                        nex,
+                                        ney,
+                                        nez,
+                                        effective_width,
+                                        effective_height,
+                                        effective_depth,
                                     );
-                                    0.0
+
+                                    if downsample_factor > 1 {
+                                        let x_start = nnex * downsample_factor;
+                                        let y_start = nney * downsample_factor;
+                                        let z_start = nnez * downsample_factor;
+                                        Self::calculate_representative_block(
+                                            neighbor_chunk_data,
+                                            x_start,
+                                            y_start,
+                                            z_start,
+                                            downsample_factor,
+                                        )
+                                    } else {
+                                        neighbor_chunk_data.get_block(nnex, nney, nnez)
+                                    }
                                 }
-                            };
-                            Self::add_scaled_face(
-                                FaceParams {
-                                    position: [x as f32, y as f32, z as f32],
-                                    face_index,
-                                    layer_index,
-                                    scale: 1.0,
-                                },
-                                &mut vertices,
-                                &mut indices,
-                                &mut index_offset,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-
-        if vertices.is_empty() {
-            None
-        } else {
-            Some(Mesh { vertices, indices })
-        }
-    }
-
-    fn generate_low_lod_mesh(
-        &self,
-        chunk_coord: ChunkCoord,
-        chunk_data: &ChunkData,
-        _neighbors: &[Option<ChunkData>; 6],
-        texture_layers: &HashMap<String, f32>,
-    ) -> Option<Mesh> {
-        let mut vertices: Vec<f32> = Vec::new();
-        let mut indices: Vec<u32> = Vec::new();
-        let mut index_offset: u32 = 0;
-
-        let low_res_data = self.downsample_chunk(chunk_data);
-
-        for ly in 0..LOW_RES_HEIGHT {
-            for lz in 0..LOW_RES_DEPTH {
-                for lx in 0..LOW_RES_WIDTH {
-                    let low_res_index =
-                        lx + lz * LOW_RES_WIDTH + ly * LOW_RES_WIDTH * LOW_RES_DEPTH;
-                    let current_block_type = low_res_data[low_res_index];
-
-                    if current_block_type == BlockType::Air {
-                        continue;
-                    }
-
-                    let face_textures = match current_block_type.get_face_textures() {
-                        Some(textures) => textures,
-                        None => {
-                            continue;
-                        }
-                    };
-
-                    let texture_layer_indices: [f32; 6] = core::array::from_fn(|i| {
-                        let texture_name = face_textures[Self::face_texture_index(i)];
-                        *texture_layers.get(texture_name).unwrap_or_else(|| {
-                            eprintln!(
-                                "Warning: Layer index not found for texture '{}' (LOD::Low, Block: {:?}, Chunk: {:?})",
-                                texture_name, current_block_type, chunk_coord
-                            );
-                            &0.0
-                        })
-                    });
-
-                    for face_index in 0..6 {
-                        let (nlx, nly, nlz) =
-                            Self::get_low_res_neighbor_coords(lx, ly, lz, face_index);
-
-                        let mut should_draw_face = false;
-
-                        if nlx < 0
-                            || nlx >= LOW_RES_WIDTH as i32
-                            || nly < 0
-                            || nly >= LOW_RES_HEIGHT as i32
-                            || nlz < 0
-                            || nlz >= LOW_RES_DEPTH as i32
-                        {
-                            should_draw_face = true;
-                        } else {
-                            let neighbor_index = nlx as usize
-                                + (nlz as usize) * LOW_RES_WIDTH
-                                + (nly as usize) * LOW_RES_WIDTH * LOW_RES_DEPTH;
-                            if !low_res_data[neighbor_index].is_solid() {
-                                should_draw_face = true;
+                                None => BlockType::Air,
                             }
-                        }
+                        } else {
+                            data_to_mesh.get_effective_block(
+                                nex as usize,
+                                ney as usize,
+                                nez as usize,
+                                effective_width,
+                                effective_depth,
+                            )
+                        };
+
+                        let should_draw_face = if current_block_type.is_water() {
+                            neighbor_block_type == BlockType::Air
+                        } else {
+                            !neighbor_block_type.is_culled_by()
+                        };
 
                         if should_draw_face {
-                            let layer_index = texture_layer_indices[face_index];
-                            let pos_x = lx as f32 * DOWNSAMPLE_FACTOR as f32
-                                + (DOWNSAMPLE_FACTOR as f32 / 2.0)
-                                - 0.5;
-                            let pos_y = ly as f32 * DOWNSAMPLE_FACTOR as f32
-                                + (DOWNSAMPLE_FACTOR as f32 / 2.0)
-                                - 0.5;
-                            let pos_z = lz as f32 * DOWNSAMPLE_FACTOR as f32
-                                + (DOWNSAMPLE_FACTOR as f32 / 2.0)
-                                - 0.5;
+                            let pos_x =
+                                (ex * downsample_factor) as f32 + (scale_factor / 2.0) - 0.5;
+                            let pos_y =
+                                (ey * downsample_factor) as f32 + (scale_factor / 2.0) - 0.5;
+                            let pos_z =
+                                (ez * downsample_factor) as f32 + (scale_factor / 2.0) - 0.5;
+
+                            let texture_name = face_textures[Self::face_texture_index(face_index)];
+                            let layer_index = *texture_layers.get(texture_name).unwrap_or_else(|| {
+                                eprintln!(
+                                    "Warning: Layer index not found for texture '{}' (LOD::{:?}, Block: {:?}, Chunk: {:?})",
+                                    texture_name, lod, current_block_type, chunk_coord
+                                );
+                                &0.0
+                            });
 
                             Self::add_scaled_face(
                                 FaceParams {
                                     position: [pos_x, pos_y, pos_z],
                                     face_index,
                                     layer_index,
-                                    scale: DOWNSAMPLE_FACTOR as f32,
+                                    scale: scale_factor,
                                 },
                                 &mut vertices,
                                 &mut indices,
@@ -228,21 +201,27 @@ impl MeshGenerator {
         }
     }
 
-    fn downsample_chunk(&self, chunk_data: &ChunkData) -> Vec<BlockType> {
-        let mut low_res_data = vec![BlockType::Air; LOW_RES_WIDTH * LOW_RES_HEIGHT * LOW_RES_DEPTH];
-        let factor = DOWNSAMPLE_FACTOR;
+    fn downsample_chunk(&self, chunk_data: &ChunkData, factor: usize) -> Vec<BlockType> {
+        if factor <= 1 {
+            panic!("Downsample factor must be > 1, got {}", factor);
+        }
+        let eff_w = CHUNK_WIDTH / factor;
+        let eff_h = CHUNK_HEIGHT / factor;
+        let eff_d = CHUNK_DEPTH / factor;
+        let mut low_res_data = vec![BlockType::Air; eff_w * eff_h * eff_d];
 
-        for ly in 0..LOW_RES_HEIGHT {
-            for lz in 0..LOW_RES_DEPTH {
-                for lx in 0..LOW_RES_WIDTH {
-                    let x_start = lx * factor;
-                    let y_start = ly * factor;
-                    let z_start = lz * factor;
+        for ey in 0..eff_h {
+            for ez in 0..eff_d {
+                for ex in 0..eff_w {
+                    let x_start = ex * factor;
+                    let y_start = ey * factor;
+                    let z_start = ez * factor;
 
-                    let representative_block =
-                        Self::calculate_representative_block(chunk_data, x_start, y_start, z_start);
+                    let representative_block = Self::calculate_representative_block(
+                        chunk_data, x_start, y_start, z_start, factor,
+                    );
 
-                    let index = lx + lz * LOW_RES_WIDTH + ly * LOW_RES_WIDTH * LOW_RES_DEPTH;
+                    let index = ex + ez * eff_w + ey * eff_w * eff_d;
                     low_res_data[index] = representative_block;
                 }
             }
@@ -256,10 +235,10 @@ impl MeshGenerator {
         x_start: usize,
         y_start: usize,
         z_start: usize,
+        factor: usize,
     ) -> BlockType {
         let mut exposed_block_counts: HashMap<BlockType, usize> = HashMap::new();
         let mut internal_block_counts: HashMap<BlockType, usize> = HashMap::new();
-        let factor = DOWNSAMPLE_FACTOR;
 
         for y_offset in 0..factor {
             for z_offset in 0..factor {
@@ -271,13 +250,25 @@ impl MeshGenerator {
                     if x < CHUNK_WIDTH && y < CHUNK_HEIGHT && z < CHUNK_DEPTH {
                         let high_res_block = chunk_data.get_block(x, y, z);
 
-                        if high_res_block.is_solid() {
+                        if high_res_block != BlockType::Air {
                             let mut is_exposed = false;
                             for face_index in 0..6 {
-                                let (nx, ny, nz) = Self::get_neighbor_coords(x, y, z, face_index);
-                                let neighbor_block =
-                                    Self::get_block_within_chunk(chunk_data, nx, ny, nz);
-                                if neighbor_block == BlockType::Air {
+                                let (nx, ny, nz) =
+                                    Self::get_high_res_neighbor_coords(x, y, z, face_index);
+
+                                let neighbor_block = if nx >= 0
+                                    && nx < CHUNK_WIDTH as i32
+                                    && ny >= 0
+                                    && ny < CHUNK_HEIGHT as i32
+                                    && nz >= 0
+                                    && nz < CHUNK_DEPTH as i32
+                                {
+                                    chunk_data.get_block(nx as usize, ny as usize, nz as usize)
+                                } else {
+                                    BlockType::Air
+                                };
+
+                                if !neighbor_block.is_culled_by() {
                                     is_exposed = true;
                                     break;
                                 }
@@ -294,43 +285,68 @@ impl MeshGenerator {
             }
         }
 
-        let exposed_choice = Self::find_most_frequent_stable(&exposed_block_counts);
-        let internal_choice = Self::find_most_frequent_stable(&internal_block_counts);
-
-        exposed_choice.or(internal_choice).unwrap_or(BlockType::Air)
+        Self::find_most_frequent_stable(&exposed_block_counts)
+            .or_else(|| Self::find_most_frequent_stable(&internal_block_counts))
+            .unwrap_or(BlockType::Air)
     }
 
-    #[inline]
-    fn get_neighbor_coords(x: usize, y: usize, z: usize, face_index: usize) -> (i32, i32, i32) {
-        let (x, y, z) = (x as i32, y as i32, z as i32);
-        match face_index {
-            0 => (x + 1, y, z), // Right (+X)
-            1 => (x - 1, y, z), // Left (-X)
-            2 => (x, y + 1, z), // Top (+Y)
-            3 => (x, y - 1, z), // Bottom (-Y)
-            4 => (x, y, z + 1), // Front (+Z)
-            5 => (x, y, z - 1), // Back (-Z)
-            _ => (x, y, z),
-        }
-    }
+    const FACE_OFFSETS: [[i32; 3]; 6] = [
+        [1, 0, 0],
+        [-1, 0, 0],
+        [0, 1, 0],
+        [0, -1, 0],
+        [0, 0, 1],
+        [0, 0, -1],
+    ];
 
     #[inline]
-    fn get_low_res_neighbor_coords(
-        lx: usize,
-        ly: usize,
-        lz: usize,
+    fn get_high_res_neighbor_coords(
+        x: usize,
+        y: usize,
+        z: usize,
         face_index: usize,
     ) -> (i32, i32, i32) {
-        let (lx, ly, lz) = (lx as i32, ly as i32, lz as i32);
-        match face_index {
-            0 => (lx + 1, ly, lz), // Right (+X)
-            1 => (lx - 1, ly, lz), // Left (-X)
-            2 => (lx, ly + 1, lz), // Top (+Y)
-            3 => (lx, ly - 1, lz), // Bottom (-Y)
-            4 => (lx, ly, lz + 1), // Front (+Z)
-            5 => (lx, ly, lz - 1), // Back (-Z)
-            _ => (lx, ly, lz),
-        }
+        let offset = Self::FACE_OFFSETS[face_index];
+        (
+            x as i32 + offset[0],
+            y as i32 + offset[1],
+            z as i32 + offset[2],
+        )
+    }
+
+    #[inline]
+    fn get_effective_neighbor_coords(
+        ex: usize,
+        ey: usize,
+        ez: usize,
+        face_index: usize,
+    ) -> (i32, i32, i32) {
+        let offset = Self::FACE_OFFSETS[face_index];
+        (
+            ex as i32 + offset[0],
+            ey as i32 + offset[1],
+            ez as i32 + offset[2],
+        )
+    }
+
+    #[inline]
+    fn face_to_neighbor_index(face_index: usize) -> usize {
+        face_index
+    }
+
+    #[inline]
+    fn wrap_effective_neighbor_coords(
+        nex: i32,
+        ney: i32,
+        nez: i32,
+        eff_w: usize,
+        eff_h: usize,
+        eff_d: usize,
+    ) -> (usize, usize, usize) {
+        let wrapped_x = nex.rem_euclid(eff_w as i32) as usize;
+        let wrapped_y = ney.rem_euclid(eff_h as i32) as usize;
+        let wrapped_z = nez.rem_euclid(eff_d as i32) as usize;
+        (wrapped_x, wrapped_y, wrapped_z)
     }
 
     fn find_most_frequent_stable(counts: &HashMap<BlockType, usize>) -> Option<BlockType> {
@@ -356,20 +372,6 @@ impl MeshGenerator {
         candidates.sort_unstable();
 
         candidates.first().copied()
-    }
-
-    fn get_block_within_chunk(chunk_data: &ChunkData, x: i32, y: i32, z: i32) -> BlockType {
-        if x >= 0
-            && x < CHUNK_WIDTH as i32
-            && y >= 0
-            && y < CHUNK_HEIGHT as i32
-            && z >= 0
-            && z < CHUNK_DEPTH as i32
-        {
-            chunk_data.get_block(x as usize, y as usize, z as usize)
-        } else {
-            BlockType::Air
-        }
     }
 
     #[inline]
@@ -410,8 +412,8 @@ impl MeshGenerator {
         ];
 
         let (vertex_indices, uv_indices): ([usize; 4], [usize; 4]) = match params.face_index {
-            0 => ([1, 2, 6, 5], [0, 3, 2, 1]), // Right (+X) - UVs flipped horizontally? Check texture orientation
-            1 => ([4, 7, 3, 0], [0, 3, 2, 1]), // Left (-X)  - UVs flipped horizontally?
+            0 => ([1, 2, 6, 5], [0, 3, 2, 1]), // Right (+X)
+            1 => ([4, 7, 3, 0], [0, 3, 2, 1]), // Left (-X)
             2 => ([3, 7, 6, 2], [0, 1, 2, 3]), // Top (+Y)
             3 => ([1, 5, 4, 0], [0, 1, 2, 3]), // Bottom (-Y)
             4 => ([4, 5, 6, 7], [0, 1, 2, 3]), // Front (+Z)
