@@ -31,7 +31,7 @@ impl RenderSystem {
         shader_program.set_uniform_mat4("viewMatrix", &view_matrix);
         shader_program.set_uniform_mat4("projectionMatrix", &projection_matrix);
 
-        texture_manager.bind_atlas(crate::gl::TEXTURE0);
+        texture_manager.bind_texture_array(crate::gl::TEXTURE0);
         shader_program.set_uniform_int("blockTexture", 0);
 
         for (_entity, (transform, renderable, chunk_coord)) in world

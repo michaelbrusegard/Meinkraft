@@ -1,5 +1,5 @@
 use crate::components::{ChunkCoord, ChunkData};
-use crate::resources::{Mesh, MeshGenerator, TextureUVs, WorldGenerator};
+use crate::resources::{Mesh, MeshGenerator, WorldGenerator};
 use bincode::config::{standard, Configuration};
 use crossbeam_channel::{Receiver, Sender};
 use hecs::Entity;
@@ -23,7 +23,7 @@ pub type LoadResult = (ChunkCoord, Option<ChunkData>);
 pub struct WorkerResources {
     pub world_generator: Arc<WorldGenerator>,
     pub mesh_generator: Arc<MeshGenerator>,
-    pub texture_manager_uvs: Arc<StdHashMap<String, TextureUVs>>,
+    pub texture_manager_layers: Arc<StdHashMap<String, f32>>,
     pub chunk_cache: ChunkCache,
 }
 
@@ -110,7 +110,7 @@ pub type NeighborData = Box<[Option<ChunkData>; 6]>;
 pub struct WorkerPool {
     world_generator: Arc<WorldGenerator>,
     mesh_generator: Arc<MeshGenerator>,
-    texture_manager_uvs: Arc<StdHashMap<String, TextureUVs>>,
+    texture_manager_layers: Arc<StdHashMap<String, f32>>,
     chunk_cache: ChunkCache,
     gen_request_rx: Receiver<LoadRequest>,
     mesh_request_rx: Receiver<(Entity, ChunkCoord, ChunkData, NeighborData)>,
@@ -127,7 +127,7 @@ impl WorkerPool {
         let (shutdown_tx, shutdown_rx) = crossbeam_channel::bounded::<()>(num_threads);
         let wg = Arc::clone(&resources.world_generator);
         let mg = Arc::clone(&resources.mesh_generator);
-        let tm_uvs = Arc::clone(&resources.texture_manager_uvs);
+        let tm_layers = Arc::clone(&resources.texture_manager_layers);
         let cache = resources.chunk_cache.clone();
         let gen_rx = channels.gen_request_rx.clone();
         let mesh_rx = channels.mesh_request_rx.clone();
@@ -137,7 +137,7 @@ impl WorkerPool {
         for i in 0..num_threads {
             let wg_clone = Arc::clone(&wg);
             let mg_clone = Arc::clone(&mg);
-            let tm_uvs_clone = Arc::clone(&tm_uvs);
+            let tm_layers_clone = Arc::clone(&tm_layers);
             let cache_clone = cache.clone();
             let gen_rx_clone = gen_rx.clone();
             let mesh_rx_clone = mesh_rx.clone();
@@ -150,7 +150,7 @@ impl WorkerPool {
                 .spawn(move || {
                     let wg = wg_clone;
                     let mg = mg_clone;
-                    let tm_uvs = tm_uvs_clone;
+                    let tm_layers = tm_layers_clone;
                     let cache = cache_clone;
                     let gen_rx = gen_rx_clone;
                     let mesh_rx = mesh_rx_clone;
@@ -199,7 +199,7 @@ impl WorkerPool {
                                         coord,
                                         &chunk_data,
                                         &neighbors,
-                                        &tm_uvs,
+                                        &tm_layers,
                                     );
                                     if mesh_tx.send((entity, coord, mesh_result)).is_err() {
                                         break;
@@ -221,7 +221,7 @@ impl WorkerPool {
         Self {
             world_generator: resources.world_generator,
             mesh_generator: resources.mesh_generator,
-            texture_manager_uvs: resources.texture_manager_uvs,
+            texture_manager_layers: resources.texture_manager_layers,
             chunk_cache: resources.chunk_cache,
             gen_request_rx: channels.gen_request_rx,
             mesh_request_rx: channels.mesh_request_rx,

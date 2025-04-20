@@ -22,7 +22,6 @@ raw-window-handle = "0.6.2"
 glam = "0.30.1"
 hecs = "0.10.5"
 image = "0.25.6"
-texture_packer = "0.30.0"
 fnv = "1.0.7"
 noise = "0.9.0"
 serde = { version = "1.0.219", features = ["derive"] }

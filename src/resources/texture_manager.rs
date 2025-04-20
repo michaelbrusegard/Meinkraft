@@ -3,213 +3,153 @@ use image::RgbaImage;
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
-use texture_packer::importer::ImageImporter;
-use texture_packer::texture::Texture;
-use texture_packer::{TexturePacker, TexturePackerConfig};
-
-pub type TextureUVs = [f32; 4];
 
 pub struct TextureManager {
     gl: gl::Gl,
-    atlas_texture_id: gl::types::GLuint,
-    texture_coords: HashMap<String, TextureUVs>,
+    array_texture_id: gl::types::GLuint,
+    texture_layers: HashMap<String, f32>,
+    layer_count: u32,
+    texture_width: u32,
+    texture_height: u32,
 }
 
 impl TextureManager {
     pub fn new(gl: gl::Gl) -> Self {
         Self {
             gl,
-            atlas_texture_id: 0,
-            texture_coords: HashMap::new(),
+            array_texture_id: 0,
+            texture_layers: HashMap::new(),
+            layer_count: 0,
+            texture_width: 0,
+            texture_height: 0,
         }
     }
 
-    fn pad_image_with_bleed(img: &RgbaImage, padding: u32) -> RgbaImage {
-        if padding == 0 {
-            return img.clone();
-        }
-        let (width, height) = img.dimensions();
-        let new_width = width + 2 * padding;
-        let new_height = height + 2 * padding;
-        let mut padded_img = RgbaImage::new(new_width, new_height);
-        image::imageops::overlay(&mut padded_img, img, padding as i64, padding as i64);
-        for p in 1..=padding {
-            let rx1 = width - 1;
-            let wx1 = padding + width + p - 1;
-            for y in 0..height {
-                padded_img.put_pixel(wx1, padding + y, *img.get_pixel(rx1, y));
-            }
-            let rx2 = 0;
-            let wx2 = padding - p;
-            for y in 0..height {
-                padded_img.put_pixel(wx2, padding + y, *img.get_pixel(rx2, y));
-            }
-            let ry1 = height - 1;
-            let wy1 = padding + height + p - 1;
-            for x in 0..width {
-                padded_img.put_pixel(padding + x, wy1, *img.get_pixel(x, ry1));
-            }
-            let ry2 = 0;
-            let wy2 = padding - p;
-            for x in 0..width {
-                padded_img.put_pixel(padding + x, wy2, *img.get_pixel(x, ry2));
-            }
-        }
-        let tl = *img.get_pixel(0, 0);
-        let tr = *img.get_pixel(width - 1, 0);
-        let bl = *img.get_pixel(0, height - 1);
-        let br = *img.get_pixel(width - 1, height - 1);
-        for py in 1..=padding {
-            for px in 1..=padding {
-                padded_img.put_pixel(padding - px, padding - py, tl);
-                padded_img.put_pixel(padding + width + px - 1, padding - py, tr);
-                padded_img.put_pixel(padding - px, padding + height + py - 1, bl);
-                padded_img.put_pixel(padding + width + px - 1, padding + height + py - 1, br);
-            }
-        }
-        padded_img
-    }
-
-    pub fn load_textures_and_build_atlas(
+    pub fn load_textures_as_array(
         &mut self,
         texture_files: &[(&str, &str)],
     ) -> Result<(), Box<dyn Error>> {
-        let image_padding: u32 = 64;
+        self.cleanup_texture();
 
-        let config = TexturePackerConfig {
-            max_width: 1024,
-            max_height: 1024,
-            allow_rotation: false,
-            texture_outlines: false,
-            force_max_dimensions: false,
-            trim: false,
-            border_padding: 0,
-            texture_padding: 0,
-            texture_extrusion: 0,
-        };
-
-        let mut packer = TexturePacker::new_skyline(config);
-        let mut loaded_images = HashMap::new();
-
-        for (name, path) in texture_files {
-            let dynamic_img = ImageImporter::import_from_file(Path::new(path))?.flipv();
-            let original_rgba_img = dynamic_img.to_rgba8();
-            let padded_img = Self::pad_image_with_bleed(&original_rgba_img, image_padding);
-            loaded_images.insert(name.to_string(), padded_img.clone());
-            packer
-                .pack_own(name.to_string(), padded_img)
-                .map_err(|e| format!("Failed to pack texture {}: {:?}", name, e))?;
+        if texture_files.is_empty() {
+            return Ok(());
         }
 
-        let atlas_width = packer.width();
-        let atlas_height = packer.height();
-        let mut atlas_image = RgbaImage::new(atlas_width, atlas_height);
+        let mut images = Vec::new();
+        let mut max_width = 0;
+        let mut max_height = 0;
 
-        self.texture_coords.clear();
+        for (i, (name, path)) in texture_files.iter().enumerate() {
+            let img = image::open(Path::new(path))
+                .map_err(|e| format!("Failed to load texture {}: {}", name, e))?
+                .flipv();
+            let rgba_img = img.to_rgba8();
+            let (width, height) = rgba_img.dimensions();
 
-        let atlas_width_f = atlas_width as f32;
-        let atlas_height_f = atlas_height as f32;
+            max_width = max_width.max(width);
+            max_height = max_height.max(height);
 
-        for (name, frame) in packer.get_frames() {
-            let source_padded_image = loaded_images
-                .get(name)
-                .ok_or_else(|| format!("Padded image not found for frame: {}", name))?;
-            let frame_rect = frame.frame;
+            images.push((name.to_string(), rgba_img));
+            self.texture_layers.insert(name.to_string(), i as f32);
+        }
 
-            image::imageops::overlay(
-                &mut atlas_image,
-                source_padded_image,
-                frame_rect.x as i64,
-                frame_rect.y as i64,
+        self.layer_count = images.len() as u32;
+        self.texture_width = max_width;
+        self.texture_height = max_height;
+
+        unsafe {
+            self.gl.GenTextures(1, &mut self.array_texture_id);
+            self.gl
+                .BindTexture(gl::TEXTURE_2D_ARRAY, self.array_texture_id);
+
+            self.gl.TexImage3D(
+                gl::TEXTURE_2D_ARRAY,
+                0,
+                gl::RGBA8 as i32,
+                max_width as i32,
+                max_height as i32,
+                self.layer_count as i32,
+                0,
+                gl::RGBA,
+                gl::UNSIGNED_BYTE,
+                std::ptr::null(),
             );
 
-            let content_x = frame_rect.x + image_padding;
-            let content_y = frame_rect.y + image_padding;
-            let content_w = frame_rect.w - 2 * image_padding;
-            let content_h = frame_rect.h - 2 * image_padding;
+            for (i, (_name, image_data)) in images.iter().enumerate() {
+                let (width, height) = image_data.dimensions();
+                let mut aligned_image = RgbaImage::new(max_width, max_height);
+                image::imageops::overlay(&mut aligned_image, image_data, 0, 0);
 
-            let content_u_min = content_x as f32 / atlas_width_f;
-            let content_v_min = content_y as f32 / atlas_height_f;
-            let content_u_max = (content_x + content_w) as f32 / atlas_width_f;
-            let content_v_max = (content_y + content_h) as f32 / atlas_height_f;
+                self.gl.TexSubImage3D(
+                    gl::TEXTURE_2D_ARRAY,
+                    0,
+                    0,
+                    0,
+                    i as i32,
+                    width as i32,
+                    height as i32,
+                    1,
+                    gl::RGBA,
+                    gl::UNSIGNED_BYTE,
+                    aligned_image.as_raw().as_ptr() as *const _,
+                );
+            }
 
-            let epsilon = 0.5 / atlas_width_f;
+            self.gl
+                .TexParameteri(gl::TEXTURE_2D_ARRAY, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
+            self.gl
+                .TexParameteri(gl::TEXTURE_2D_ARRAY, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+            self.gl.TexParameteri(
+                gl::TEXTURE_2D_ARRAY,
+                gl::TEXTURE_MIN_FILTER,
+                gl::NEAREST_MIPMAP_LINEAR as i32,
+            );
+            self.gl.TexParameteri(
+                gl::TEXTURE_2D_ARRAY,
+                gl::TEXTURE_MAG_FILTER,
+                gl::NEAREST as i32,
+            );
 
-            let uvs = [
-                content_u_min + epsilon,
-                content_v_min + epsilon,
-                content_u_max - epsilon,
-                content_v_max - epsilon,
-            ];
-            self.texture_coords.insert(name.clone(), uvs);
+            self.gl.GenerateMipmap(gl::TEXTURE_2D_ARRAY);
+
+            self.gl.BindTexture(gl::TEXTURE_2D_ARRAY, 0);
         }
 
-        if let Err(e) = atlas_image.save("debug_atlas.png") {
-            eprintln!("Failed to save debug atlas: {}", e);
-        }
-
-        self.atlas_texture_id =
-            self.create_gl_texture(atlas_width, atlas_height, &atlas_image.into_raw());
+        println!(
+            "Texture array created: {} layers, {}x{}",
+            self.layer_count, self.texture_width, self.texture_height
+        );
 
         Ok(())
     }
 
-    fn create_gl_texture(&self, width: u32, height: u32, data: &[u8]) -> gl::types::GLuint {
-        let mut texture_id = 0;
-        unsafe {
-            self.gl.GenTextures(1, &mut texture_id);
-            self.gl.BindTexture(gl::TEXTURE_2D, texture_id);
-            self.gl
-                .TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);
-            self.gl
-                .TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);
-            self.gl.TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_MIN_FILTER,
-                gl::NEAREST_MIPMAP_LINEAR as i32,
-            );
-            self.gl
-                .TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
-            self.gl.TexImage2D(
-                gl::TEXTURE_2D,
-                0,
-                gl::RGBA8 as i32,
-                width as i32,
-                height as i32,
-                0,
-                gl::RGBA,
-                gl::UNSIGNED_BYTE,
-                data.as_ptr() as *const _,
-            );
-            self.gl.GenerateMipmap(gl::TEXTURE_2D);
-            self.gl.BindTexture(gl::TEXTURE_2D, 0);
-        }
-        texture_id
+    pub fn get_layer_index(&self, name: &str) -> Option<f32> {
+        self.texture_layers.get(name).copied()
     }
 
-    pub fn get_uvs(&self, name: &str) -> Option<TextureUVs> {
-        self.texture_coords.get(name).copied()
+    pub fn get_all_layers(&self) -> HashMap<String, f32> {
+        self.texture_layers.clone()
     }
 
-    pub fn get_all_uvs(&self) -> HashMap<String, TextureUVs> {
-        self.texture_coords.clone()
-    }
-
-    pub fn bind_atlas(&self, texture_unit: gl::types::GLenum) {
+    pub fn bind_texture_array(&self, texture_unit: gl::types::GLenum) {
         unsafe {
             self.gl.ActiveTexture(texture_unit);
-            self.gl.BindTexture(gl::TEXTURE_2D, self.atlas_texture_id);
+            self.gl
+                .BindTexture(gl::TEXTURE_2D_ARRAY, self.array_texture_id);
         }
     }
 
     fn cleanup_texture(&mut self) {
-        if self.atlas_texture_id != 0 {
+        if self.array_texture_id != 0 {
             unsafe {
-                self.gl.DeleteTextures(1, &self.atlas_texture_id);
+                self.gl.DeleteTextures(1, &self.array_texture_id);
             }
-            self.atlas_texture_id = 0;
+            self.array_texture_id = 0;
         }
-        self.texture_coords.clear();
+        self.texture_layers.clear();
+        self.layer_count = 0;
+        self.texture_width = 0;
+        self.texture_height = 0;
     }
 }
 

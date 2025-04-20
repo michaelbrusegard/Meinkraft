@@ -40,7 +40,7 @@ pub mod resources {
     pub use mesh_generator::MeshGenerator;
     pub use renderer::Renderer;
     pub use shader_program::ShaderProgram;
-    pub use texture_manager::{TextureManager, TextureUVs};
+    pub use texture_manager::TextureManager;
     pub use world_generator::WorldGenerator;
 }
 

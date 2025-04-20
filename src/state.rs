@@ -73,8 +73,8 @@ impl GameState {
             ("diorite", "assets/textures/diorite.png"),
             ("cobblestone", "assets/textures/cobblestone.png"),
         ];
-        if let Err(e) = texture_manager.load_textures_and_build_atlas(&texture_files) {
-            panic!("Failed to load textures or build atlas: {}", e);
+        if let Err(e) = texture_manager.load_textures_as_array(&texture_files) {
+            panic!("Failed to load textures into array: {}", e);
         }
         #[allow(clippy::arc_with_non_send_sync)]
         let texture_manager = Arc::new(texture_manager);
@@ -129,7 +129,7 @@ impl GameState {
         let resources = WorkerResources {
             world_generator: Arc::clone(&self.world_generator),
             mesh_generator: Arc::clone(&self.mesh_generator),
-            texture_manager_uvs: Arc::new(self.texture_manager.get_all_uvs()),
+            texture_manager_layers: Arc::new(self.texture_manager.get_all_layers()),
             chunk_cache: self.chunk_cache.clone(),
         };
 

@@ -12,14 +12,11 @@ impl Renderer {
     pub fn new(gl: gl::Gl) -> Self {
         unsafe {
             gl.ClearColor(0.1, 0.1, 0.1, 1.0);
-
             gl.Enable(gl::DEPTH_TEST);
             gl.DepthFunc(gl::LESS);
             gl.Enable(gl::BLEND);
             gl.BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
-
             gl.PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
-
             gl.Enable(gl::CULL_FACE);
             gl.CullFace(gl::BACK);
             gl.FrontFace(gl::CCW);
@@ -64,10 +61,12 @@ impl Renderer {
                 gl::STATIC_DRAW,
             );
 
-            let stride = (5 * std::mem::size_of::<f32>()) as gl::types::GLsizei;
+            let stride = (6 * std::mem::size_of::<f32>()) as gl::types::GLsizei;
+
             self.gl
                 .VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, stride, std::ptr::null());
             self.gl.EnableVertexAttribArray(0);
+
             self.gl.VertexAttribPointer(
                 1,
                 2,
@@ -77,6 +76,16 @@ impl Renderer {
                 (3 * std::mem::size_of::<f32>()) as *const _,
             );
             self.gl.EnableVertexAttribArray(1);
+
+            self.gl.VertexAttribPointer(
+                2,
+                1,
+                gl::FLOAT,
+                gl::FALSE,
+                stride,
+                (5 * std::mem::size_of::<f32>()) as *const _,
+            );
+            self.gl.EnableVertexAttribArray(2);
 
             self.vaos.insert(mesh_id, vao);
             self.vbos.insert(mesh_id, vbo);
