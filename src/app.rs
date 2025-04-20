@@ -4,6 +4,7 @@ use crate::state::GameState;
 use crate::window::WindowManager;
 use glutin::config::ConfigTemplateBuilder;
 use std::error::Error;
+use std::time::Instant;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
@@ -11,6 +12,7 @@ use winit::window::WindowId;
 
 pub struct App {
     window_manager: WindowManager,
+    last_update_time: Instant,
     input_manager: InputManager,
     game_state: Option<GameState>,
     system_scheduler: SystemScheduler,
@@ -24,6 +26,7 @@ impl App {
             game_state: None,
             system_scheduler: SystemScheduler::new(),
             input_manager: InputManager::new(),
+            last_update_time: Instant::now(),
             exit_state: Ok(()),
         }
     }
@@ -98,7 +101,14 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        let now = Instant::now();
+        let delta_time = now.duration_since(self.last_update_time).as_secs_f32();
+        self.last_update_time = now;
+
         if let Some(game_state) = &mut self.game_state {
+            game_state.time_of_day += delta_time * game_state.day_cycle_speed;
+            game_state.time_of_day %= 1.0;
+
             self.system_scheduler
                 .update_input(game_state, &self.input_manager);
 

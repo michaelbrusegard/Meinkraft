@@ -38,11 +38,11 @@ impl Config {
             key_bindings,
             move_speed: 1.0,
             mouse_sensitivity: 0.003,
-            load_distance: 12,
-            lod2_distance: 16,
-            lod4_distance: 20,
-            lod8_distance: 22,
-            render_distance: 24,
+            load_distance: 8,    // 12
+            lod2_distance: 12,   // 16
+            lod4_distance: 14,   // 20
+            lod8_distance: 16,   // 22
+            render_distance: 16, // 24
             world_seed: 42069,
         }
     }

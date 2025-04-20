@@ -39,13 +39,6 @@ impl SystemScheduler {
     }
 
     pub fn render(&self, game_state: &mut GameState) {
-        self.render_system.render(
-            &game_state.world,
-            &mut game_state.camera,
-            &game_state.renderer,
-            &game_state.shader_program,
-            &game_state.texture_manager,
-            &game_state.mesh_registry,
-        );
+        self.render_system.render(game_state);
     }
 }

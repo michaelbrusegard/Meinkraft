@@ -1,5 +1,6 @@
 use crate::gl;
 use fnv::FnvHashMap;
+use glam::Vec3;
 
 pub struct Renderer {
     pub gl: gl::Gl,
@@ -117,8 +118,10 @@ impl Renderer {
         }
     }
 
-    pub fn clear(&self) {
+    pub fn clear(&self, sky_color: Vec3) {
         unsafe {
+            self.gl
+                .ClearColor(sky_color.x, sky_color.y, sky_color.z, 1.0);
             self.gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
     }

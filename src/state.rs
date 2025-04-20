@@ -40,6 +40,8 @@ pub struct GameState {
     mesh_request_rx_worker: Option<Receiver<MeshRequestData>>,
     mesh_result_tx_worker: Option<Sender<MeshResultData>>,
     worker_pool: Option<WorkerPool>,
+    pub time_of_day: f32,
+    pub day_cycle_speed: f32,
 }
 
 impl GameState {
@@ -120,6 +122,8 @@ impl GameState {
             mesh_request_rx_worker: Some(mesh_request_rx_worker),
             mesh_result_tx_worker: Some(mesh_result_tx_worker),
             worker_pool: None,
+            time_of_day: 0.5,
+            day_cycle_speed: 0.01,
         }
     }
 
@@ -128,8 +132,6 @@ impl GameState {
             println!("Workers already initialized.");
             return;
         }
-        println!("Initializing worker pool...");
-
         let resources = WorkerResources {
             world_generator: Arc::clone(&self.world_generator),
             mesh_generator: Arc::clone(&self.mesh_generator),
@@ -157,7 +159,6 @@ impl GameState {
         };
 
         self.worker_pool = Some(WorkerPool::new(resources, channels));
-        println!("Worker pool initialized.");
     }
 
     pub fn shutdown_workers(&mut self) {
@@ -167,9 +168,7 @@ impl GameState {
         } else {
             println!("Worker pool was not initialized or already shut down.");
         }
-        println!("Saving modified chunks on shutdown...");
         self.save_modified_chunks();
-        println!("Chunk saving complete.");
     }
 
     fn save_modified_chunks(&mut self) {

@@ -115,11 +115,6 @@ impl TextureManager {
             self.gl.BindTexture(gl::TEXTURE_2D_ARRAY, 0);
         }
 
-        println!(
-            "Texture array created: {} layers, {}x{}",
-            self.layer_count, self.texture_width, self.texture_height
-        );
-
         Ok(())
     }
 

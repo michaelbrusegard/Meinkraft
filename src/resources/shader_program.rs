@@ -60,6 +60,7 @@ impl ShaderProgram {
         shader.register_uniform("viewMatrix");
         shader.register_uniform("projectionMatrix");
         shader.register_uniform("blockTexture");
+        shader.register_uniform("lightLevel");
 
         shader
     }
@@ -126,6 +127,14 @@ impl ShaderProgram {
         if let Some(&location) = self.uniform_locations.get(name) {
             unsafe {
                 self.gl.Uniform1i(location, value);
+            }
+        }
+    }
+
+    pub fn set_uniform_float(&self, name: &str, value: f32) {
+        if let Some(&location) = self.uniform_locations.get(name) {
+            unsafe {
+                self.gl.Uniform1f(location, value);
             }
         }
     }
