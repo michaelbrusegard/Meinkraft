@@ -36,10 +36,10 @@ impl SystemScheduler {
             .process_mesh_results_and_requests(game_state);
     }
 
-    pub fn render(&self, game_state: &GameState) {
+    pub fn render(&self, game_state: &mut GameState) {
         self.render_system.render(
             &game_state.world,
-            &game_state.camera,
+            &mut game_state.camera,
             &game_state.renderer,
             &game_state.shader_program,
             &game_state.texture_manager,

@@ -9,6 +9,11 @@ pub const CHUNK_SIZE: usize = CHUNK_WIDTH * CHUNK_HEIGHT * CHUNK_DEPTH;
 pub const MIN_CHUNK_Y: i32 = 0;
 pub const MAX_CHUNK_Y: i32 = 15;
 
+pub const CHUNK_HALF_WIDTH: f32 = CHUNK_WIDTH as f32 * 0.5;
+pub const CHUNK_HALF_HEIGHT: f32 = CHUNK_HEIGHT as f32 * 0.5;
+pub const CHUNK_HALF_DEPTH: f32 = CHUNK_DEPTH as f32 * 0.5;
+pub const CHUNK_EXTENTS: Vec3 = Vec3::new(CHUNK_HALF_WIDTH, CHUNK_HALF_HEIGHT, CHUNK_HALF_DEPTH);
+
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ChunkCoord(pub i32, pub i32, pub i32);
 
@@ -82,4 +87,9 @@ pub fn chunk_coord_to_world_pos(coord: ChunkCoord) -> Vec3 {
         (coord.1 * CHUNK_HEIGHT as i32) as f32,
         (coord.2 * CHUNK_DEPTH as i32) as f32,
     )
+}
+
+#[inline]
+pub fn chunk_coord_to_aabb_center(coord: ChunkCoord) -> Vec3 {
+    chunk_coord_to_world_pos(coord) + CHUNK_EXTENTS
 }

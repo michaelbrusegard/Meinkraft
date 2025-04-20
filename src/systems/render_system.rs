@@ -1,4 +1,6 @@
-use crate::components::{Renderable, Transform};
+use crate::components::{
+    chunk_coord_to_aabb_center, ChunkCoord, Renderable, Transform, CHUNK_EXTENTS,
+};
 use crate::resources::{Camera, MeshRegistry, Renderer, ShaderProgram, TextureManager};
 use hecs::World;
 use std::sync::Arc;
@@ -13,7 +15,7 @@ impl RenderSystem {
     pub fn render(
         &self,
         world: &World,
-        camera: &Camera,
+        camera: &mut Camera,
         renderer: &Renderer,
         shader_program: &ShaderProgram,
         texture_manager: &Arc<TextureManager>,
@@ -24,13 +26,23 @@ impl RenderSystem {
 
         let view_matrix = camera.view_matrix();
         let projection_matrix = camera.projection_matrix();
+        let frustum = camera.frustum();
+
         shader_program.set_uniform_mat4("viewMatrix", &view_matrix);
         shader_program.set_uniform_mat4("projectionMatrix", &projection_matrix);
 
         texture_manager.bind_atlas(crate::gl::TEXTURE0);
         shader_program.set_uniform_int("blockTexture", 0);
 
-        for (entity, (transform, renderable)) in world.query::<(&Transform, &Renderable)>().iter() {
+        for (_entity, (transform, renderable, chunk_coord)) in world
+            .query::<(&Transform, &Renderable, &ChunkCoord)>()
+            .iter()
+        {
+            let aabb_center = chunk_coord_to_aabb_center(*chunk_coord);
+            if !frustum.intersects_aabb(aabb_center, CHUNK_EXTENTS) {
+                continue;
+            }
+
             if let Some(mesh) = mesh_registry.meshes.get(&renderable.mesh_id) {
                 if let Some(vao) = renderer.vaos.get(&renderable.mesh_id) {
                     let model_matrix = transform.model_matrix();
@@ -47,22 +59,8 @@ impl RenderSystem {
                                 std::ptr::null(),
                             );
                         }
-                        let error = renderer.gl.GetError();
-                        if error != crate::gl::NO_ERROR {
-                            eprintln!("OpenGL Error after drawing entity {:?}: {}", entity, error);
-                        }
                     }
-                } else {
-                    eprintln!(
-                        "Warning: VAO not found for mesh_id: {} (entity: {:?})",
-                        renderable.mesh_id, entity
-                    );
                 }
-            } else {
-                eprintln!(
-                    "Error: Mesh data not found in registry for mesh_id: {} (entity: {:?})",
-                    renderable.mesh_id, entity
-                );
             }
         }
 
