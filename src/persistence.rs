@@ -44,7 +44,6 @@ impl ChunkCache {
         let cache_dir = std::env::current_dir()
             .map_err(|e| format!("Failed to get current directory: {}", e))?
             .join("cache")
-            .join("worlds")
             .join(world_name)
             .join("chunks");
 

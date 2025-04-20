@@ -74,7 +74,7 @@ impl TextureManager {
         &mut self,
         texture_files: &[(&str, &str)],
     ) -> Result<(), Box<dyn Error>> {
-        let image_padding: u32 = 1;
+        let image_padding: u32 = 64;
 
         let config = TexturePackerConfig {
             max_width: 1024,

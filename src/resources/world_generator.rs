@@ -77,7 +77,7 @@ impl WorldGenerator {
                         } else if world_y >= SNOW_LEVEL {
                             BlockType::Snow
                         } else {
-                            BlockType::Grass
+                            BlockType::GrassyDirt
                         }
                     } else if world_y > terrain_height - DIRT_DEPTH {
                         BlockType::Dirt

@@ -54,22 +54,24 @@ impl GameState {
         let mut texture_manager = TextureManager::new(renderer.gl.clone());
         let texture_files = [
             ("dirt", "assets/textures/dirt.png"),
+            ("grassy_dirt_side", "assets/textures/grassy_dirt_side.png"),
+            ("grassy_dirt_top", "assets/textures/grassy_dirt_top.png"),
             ("stone", "assets/textures/stone.png"),
-            ("grass_side", "assets/textures/grass_side.png"),
-            ("grass_top", "assets/textures/grass_top.png"),
             ("sand", "assets/textures/sand.png"),
             ("glass", "assets/textures/glass.png"),
             ("planks", "assets/textures/planks.png"),
             ("log", "assets/textures/log.png"),
             ("log_top", "assets/textures/log_top.png"),
+            ("leaves", "assets/textures/leaves.png"),
             ("water", "assets/textures/water.png"),
             ("snow", "assets/textures/snow.png"),
+            ("snowy_dirt_side", "assets/textures/snowy_dirt_side.png"),
             ("ice", "assets/textures/ice.png"),
             ("gravel", "assets/textures/gravel.png"),
             ("andesite", "assets/textures/andesite.png"),
             ("granite", "assets/textures/granite.png"),
             ("diorite", "assets/textures/diorite.png"),
-            ("leaves", "assets/textures/leaves.png"),
+            ("cobblestone", "assets/textures/cobblestone.png"),
         ];
         if let Err(e) = texture_manager.load_textures_and_build_atlas(&texture_files) {
             panic!("Failed to load textures or build atlas: {}", e);
@@ -90,8 +92,7 @@ impl GameState {
         let (mesh_result_tx_worker, mesh_result_rx) =
             crossbeam_channel::unbounded::<(Entity, ChunkCoord, Option<Mesh>)>();
 
-        let chunk_cache =
-            ChunkCache::new("default_world").expect("Failed to initialize chunk cache");
+        let chunk_cache = ChunkCache::new("world").expect("Failed to initialize chunk cache");
 
         Self {
             config,
