@@ -78,6 +78,8 @@ impl GameState {
             ("granite", "assets/textures/granite.png"),
             ("diorite", "assets/textures/diorite.png"),
             ("cobblestone", "assets/textures/cobblestone.png"),
+            ("sun", "assets/textures/sun.png"),
+            ("moon", "assets/textures/moon.png"),
         ];
         if let Err(e) = texture_manager.load_textures_as_array(&texture_files) {
             panic!("Failed to load textures into array: {}", e);
