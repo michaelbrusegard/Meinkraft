@@ -5,6 +5,22 @@ use crate::state::GameState;
 use glam::{Mat3, Mat4, Quat, Vec3};
 use std::f32::consts::PI;
 
+const MIN_LIGHT_LEVEL: f32 = 0.15;
+const MAX_LIGHT_LEVEL: f32 = 1.0;
+const SUNRISE_CENTER_TIME: f32 = 0.22;
+const SUNSET_CENTER_TIME: f32 = 0.72;
+const DAY_NIGHT_TRANSITION_DURATION: f32 = 0.05;
+
+const SUNRISE_START_TIME: f32 = SUNRISE_CENTER_TIME - DAY_NIGHT_TRANSITION_DURATION;
+const SUNRISE_END_TIME: f32 = SUNRISE_CENTER_TIME + DAY_NIGHT_TRANSITION_DURATION;
+const SUNSET_START_TIME: f32 = SUNSET_CENTER_TIME - DAY_NIGHT_TRANSITION_DURATION;
+const SUNSET_END_TIME: f32 = SUNSET_CENTER_TIME + DAY_NIGHT_TRANSITION_DURATION;
+
+const MIDNIGHT_COLOR: Vec3 = Vec3::new(0.01, 0.01, 0.05);
+const NOON_COLOR: Vec3 = Vec3::new(0.5, 0.8, 1.0);
+const SUNRISE_PEAK_COLOR: Vec3 = Vec3::new(0.9, 0.6, 0.3);
+const SUNSET_PEAK_COLOR: Vec3 = Vec3::new(0.9, 0.5, 0.3);
+
 pub struct RenderSystem {}
 
 impl RenderSystem {
@@ -202,7 +218,6 @@ impl RenderSystem {
                 }
             }
         }
-
         for (_entity, (transform, renderable, chunk_coord)) in game_state
             .world
             .query::<(&Transform, &Renderable, &ChunkCoord)>()
@@ -244,62 +259,40 @@ impl RenderSystem {
 }
 
 fn calculate_light_level(time: f32) -> f32 {
-    let min_light = 0.15;
-    let max_light = 1.0;
-
-    let sunrise_center = 0.22;
-    let sunset_center = 0.72;
-    let transition_duration = 0.05;
-    let sunrise_start = sunrise_center - transition_duration;
-    let sunrise_end = sunrise_center + transition_duration;
-    let sunset_start = sunset_center - transition_duration;
-    let sunset_end = sunset_center + transition_duration;
-
-    if time >= sunrise_end && time < sunset_start {
-        max_light
-    } else if time >= sunrise_start && time < sunrise_end {
-        let factor = (time - sunrise_start) / (sunrise_end - sunrise_start);
-        min_light + (max_light - min_light) * factor.clamp(0.0, 1.0)
-    } else if time >= sunset_start && time < sunset_end {
-        let factor = (time - sunset_start) / (sunset_end - sunset_start);
-        max_light - (max_light - min_light) * factor.clamp(0.0, 1.0)
+    if (SUNRISE_END_TIME..SUNSET_START_TIME).contains(&time) {
+        MAX_LIGHT_LEVEL
+    } else if (SUNRISE_START_TIME..SUNRISE_END_TIME).contains(&time) {
+        let factor = (time - SUNRISE_START_TIME) / (SUNRISE_END_TIME - SUNRISE_START_TIME);
+        MIN_LIGHT_LEVEL + (MAX_LIGHT_LEVEL - MIN_LIGHT_LEVEL) * factor.clamp(0.0, 1.0)
+    } else if (SUNSET_START_TIME..SUNSET_END_TIME).contains(&time) {
+        let factor = (time - SUNSET_START_TIME) / (SUNSET_END_TIME - SUNSET_START_TIME);
+        MAX_LIGHT_LEVEL - (MAX_LIGHT_LEVEL - MIN_LIGHT_LEVEL) * factor.clamp(0.0, 1.0)
     } else {
-        min_light
+        MIN_LIGHT_LEVEL
     }
 }
 
 fn calculate_sky_color(time: f32) -> Vec3 {
-    let midnight_color = Vec3::new(0.01, 0.01, 0.05);
-    let noon_color = Vec3::new(0.5, 0.8, 1.0);
-    let sunrise_peak_color = Vec3::new(0.9, 0.6, 0.3);
-    let sunset_peak_color = Vec3::new(0.9, 0.5, 0.3);
-
-    let sunrise_center = 0.22;
-    let sunset_center = 0.72;
-    let transition_duration = 0.05;
-    let sunrise_start = sunrise_center - transition_duration;
-    let sunrise_end = sunrise_center + transition_duration;
-    let sunset_start = sunset_center - transition_duration;
-    let sunset_end = sunset_center + transition_duration;
-
-    if time >= sunrise_end && time < sunset_start {
-        noon_color
-    } else if time >= sunrise_start && time < sunrise_end {
-        let factor = ((time - sunrise_start) / (sunrise_end - sunrise_start)).clamp(0.0, 1.0);
+    if (SUNRISE_END_TIME..SUNSET_START_TIME).contains(&time) {
+        NOON_COLOR
+    } else if (SUNRISE_START_TIME..SUNRISE_END_TIME).contains(&time) {
+        let factor =
+            ((time - SUNRISE_START_TIME) / (SUNRISE_END_TIME - SUNRISE_START_TIME)).clamp(0.0, 1.0);
         if factor < 0.5 {
-            midnight_color.lerp(sunrise_peak_color, factor * 2.0)
+            MIDNIGHT_COLOR.lerp(SUNRISE_PEAK_COLOR, factor * 2.0)
         } else {
-            sunrise_peak_color.lerp(noon_color, (factor - 0.5) * 2.0)
+            SUNRISE_PEAK_COLOR.lerp(NOON_COLOR, (factor - 0.5) * 2.0)
         }
-    } else if time >= sunset_start && time < sunset_end {
-        let factor = ((time - sunset_start) / (sunset_end - sunset_start)).clamp(0.0, 1.0);
+    } else if (SUNSET_START_TIME..SUNSET_END_TIME).contains(&time) {
+        let factor =
+            ((time - SUNSET_START_TIME) / (SUNSET_END_TIME - SUNSET_START_TIME)).clamp(0.0, 1.0);
         if factor < 0.5 {
-            noon_color.lerp(sunset_peak_color, factor * 2.0)
+            NOON_COLOR.lerp(SUNSET_PEAK_COLOR, factor * 2.0)
         } else {
-            sunset_peak_color.lerp(midnight_color, (factor - 0.5) * 2.0)
+            SUNSET_PEAK_COLOR.lerp(MIDNIGHT_COLOR, (factor - 0.5) * 2.0)
         }
     } else {
-        midnight_color
+        MIDNIGHT_COLOR
     }
 }
 

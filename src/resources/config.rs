@@ -21,6 +21,7 @@ pub struct Config {
     pub lod8_distance: i32,
     pub render_distance: i32,
     pub world_seed: u32,
+    pub day_cycle_speed: f32,
 }
 
 impl Config {
@@ -44,6 +45,7 @@ impl Config {
             lod4_distance: 15,   // 30
             render_distance: 16, // 32
             world_seed: 42069,
+            day_cycle_speed: 0.01,
         }
     }
 

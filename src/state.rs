@@ -24,7 +24,7 @@ pub struct GameState {
     pub camera: Camera,
     pub renderer: Renderer,
     pub shader_program: ShaderProgram,
-    pub star_shader_program: ShaderProgram, // Added for stars
+    pub star_shader_program: ShaderProgram,
     pub input_state: InputState,
     pub texture_manager: Arc<TextureManager>,
     pub mesh_registry: MeshRegistry,
@@ -42,7 +42,6 @@ pub struct GameState {
     mesh_result_tx_worker: Option<Sender<MeshResultData>>,
     worker_pool: Option<WorkerPool>,
     pub time_of_day: f32,
-    pub day_cycle_speed: f32,
     pub total_time: f32,
 }
 
@@ -155,7 +154,6 @@ impl GameState {
             mesh_result_tx_worker: Some(mesh_result_tx_worker),
             worker_pool: None,
             time_of_day: 0.5,
-            day_cycle_speed: 0.01,
             total_time: 0.0,
         }
     }

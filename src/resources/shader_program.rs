@@ -103,7 +103,6 @@ impl ShaderProgram {
         unsafe {
             let c_name = CString::new(name).unwrap();
             let location = self.gl.GetUniformLocation(self.program_id, c_name.as_ptr());
-            if location == -1 {}
             self.uniform_locations.insert(name.to_string(), location);
         }
     }

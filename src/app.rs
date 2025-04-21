@@ -106,7 +106,7 @@ impl ApplicationHandler for App {
         self.last_update_time = now;
 
         if let Some(game_state) = &mut self.game_state {
-            game_state.time_of_day += delta_time * game_state.day_cycle_speed;
+            game_state.time_of_day += delta_time * game_state.config.day_cycle_speed;
             game_state.time_of_day %= 1.0;
 
             game_state.total_time += delta_time;
