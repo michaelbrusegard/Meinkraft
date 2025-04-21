@@ -1,5 +1,5 @@
 use crate::components::{ChunkCoord, ChunkData};
-use crate::resources::{MeshGenerator, WorldGenerator};
+use crate::resources::{Config, MeshGenerator, WorldGenerator};
 use crate::state::{MeshRequestData, MeshResultData};
 use bincode::config::{standard, Configuration};
 use crossbeam_channel::{Receiver, Sender};
@@ -25,6 +25,7 @@ pub struct WorkerResources {
     pub mesh_generator: Arc<MeshGenerator>,
     pub texture_manager_layers: Arc<StdHashMap<String, f32>>,
     pub chunk_cache: ChunkCache,
+    pub config: Config,
 }
 
 pub struct WorkerChannels {
@@ -112,6 +113,7 @@ pub struct WorkerPool {
     mesh_generator: Arc<MeshGenerator>,
     texture_manager_layers: Arc<StdHashMap<String, f32>>,
     chunk_cache: ChunkCache,
+    config: Config,
     gen_request_rx: Receiver<LoadRequest>,
     mesh_request_rx: Receiver<MeshRequestData>,
     gen_result_tx: Sender<LoadResult>,
@@ -129,6 +131,7 @@ impl WorkerPool {
         let mg = Arc::clone(&resources.mesh_generator);
         let tm_layers = Arc::clone(&resources.texture_manager_layers);
         let cache = resources.chunk_cache.clone();
+        let config = resources.config.clone();
         let gen_rx = channels.gen_request_rx.clone();
         let mesh_rx = channels.mesh_request_rx.clone();
         let gen_tx = channels.gen_result_tx.clone();
@@ -139,6 +142,7 @@ impl WorkerPool {
             let mg_clone = Arc::clone(&mg);
             let tm_layers_clone = Arc::clone(&tm_layers);
             let cache_clone = cache.clone();
+            let config_clone = config.clone();
             let gen_rx_clone = gen_rx.clone();
             let mesh_rx_clone = mesh_rx.clone();
             let gen_tx_clone = gen_tx.clone();
@@ -152,6 +156,7 @@ impl WorkerPool {
                     let mg = mg_clone;
                     let tm_layers = tm_layers_clone;
                     let cache = cache_clone;
+                    let config = config_clone;
                     let gen_rx = gen_rx_clone;
                     let mesh_rx = mesh_rx_clone;
                     let gen_tx = gen_tx_clone;
@@ -201,6 +206,7 @@ impl WorkerPool {
                                         &neighbors,
                                         &tm_layers,
                                         lod,
+                                        &config,
                                     );
                                     if mesh_tx.send((entity, coord, mesh_result, lod)).is_err() {
                                         break;
@@ -224,6 +230,7 @@ impl WorkerPool {
             mesh_generator: resources.mesh_generator,
             texture_manager_layers: resources.texture_manager_layers,
             chunk_cache: resources.chunk_cache,
+            config: resources.config,
             gen_request_rx: channels.gen_request_rx,
             mesh_request_rx: channels.mesh_request_rx,
             gen_result_tx: channels.gen_result_tx,

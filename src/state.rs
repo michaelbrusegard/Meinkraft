@@ -87,7 +87,7 @@ impl GameState {
             Vec3::new(0.0, 0.0, 0.0),
             Vec3::Y,
             width as f32 / height as f32,
-            config.render_distance,
+            &config,
         );
 
         let mut texture_manager = TextureManager::new(renderer.gl.clone());
@@ -122,7 +122,7 @@ impl GameState {
 
         let mesh_registry = MeshRegistry::new();
         let mesh_generator = Arc::new(MeshGenerator::new());
-        let world_generator = Arc::new(WorldGenerator::new(&config));
+        let world_generator = Arc::new(WorldGenerator::new(config.clone()));
         let world = World::new();
         let chunk_entity_map = FnvHashMap::default();
 
@@ -173,6 +173,7 @@ impl GameState {
             mesh_generator: Arc::clone(&self.mesh_generator),
             texture_manager_layers: Arc::new(self.texture_manager.get_all_layers()),
             chunk_cache: self.chunk_cache.clone(),
+            config: self.config.clone(),
         };
 
         let channels = WorkerChannels {
@@ -279,11 +280,11 @@ impl GameState {
     }
 
     pub fn get_block_world(&self, world_x: i32, world_y: i32, world_z: i32) -> BlockType {
-        let chunk_coord = world_to_chunk_coords(world_x, world_y, world_z);
+        let chunk_coord = world_to_chunk_coords(&self.config, world_x, world_y, world_z);
         if let Some(entity) = self.chunk_entity_map.get(&chunk_coord) {
             if let Ok(data_ref) = self.world.get::<&ChunkData>(*entity) {
-                let (lx, ly, lz) = world_to_local_coords(world_x, world_y, world_z);
-                return data_ref.get_block(lx, ly, lz);
+                let (lx, ly, lz) = world_to_local_coords(&self.config, world_x, world_y, world_z);
+                return data_ref.get_block(&self.config, lx, ly, lz);
             }
         }
         BlockType::Air

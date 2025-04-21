@@ -1,6 +1,5 @@
 use crate::components::{
     world_to_chunk_coords, ChunkCoord, ChunkData, ChunkDirty, ChunkModified, Renderable,
-    MAX_CHUNK_Y, MIN_CHUNK_Y,
 };
 use crate::persistence::LoadRequest;
 use crate::state::GameState;
@@ -27,7 +26,7 @@ impl ChunkLoadingSystem {
                 if self.is_chunk_within_render_distance(coord, game_state)
                     && !game_state.chunk_entity_map.contains_key(&coord)
                 {
-                    let new_entity = game_state.world.spawn((coord, chunk_data, ChunkDirty)); // Mut borrow world
+                    let new_entity = game_state.world.spawn((coord, chunk_data, ChunkDirty));
                     game_state.chunk_entity_map.insert(coord, new_entity);
                     self.mark_neighbors_dirty(coord, game_state);
                 }
@@ -36,8 +35,8 @@ impl ChunkLoadingSystem {
 
         let camera_pos = game_state.camera.position;
         let current_cam_chunk_xz = (
-            world_to_chunk_coords(camera_pos.x.floor() as i32, 0, 0).0,
-            world_to_chunk_coords(0, 0, camera_pos.z.floor() as i32).2,
+            world_to_chunk_coords(&game_state.config, camera_pos.x.floor() as i32, 0, 0).0,
+            world_to_chunk_coords(&game_state.config, 0, 0, camera_pos.z.floor() as i32).2,
         );
 
         let needs_recalc = match self.last_camera_chunk_coord_xz {
@@ -64,7 +63,7 @@ impl ChunkLoadingSystem {
                 if dist_sq <= render_dist_sq {
                     let target_cx = cam_cx + dx;
                     let target_cz = cam_cz + dz;
-                    for target_cy in MIN_CHUNK_Y..=MAX_CHUNK_Y {
+                    for target_cy in game_state.config.min_chunk_y..=game_state.config.max_chunk_y {
                         target_render_chunks.insert(ChunkCoord(target_cx, target_cy, target_cz));
                     }
                 }
@@ -127,7 +126,6 @@ impl ChunkLoadingSystem {
                         }
                     }
 
-                    // Get both opaque and transparent mesh IDs for cleanup
                     let (opaque_id, transparent_id) =
                         match game_state.world.get::<&Renderable>(entity) {
                             Ok(r) => (r.opaque_mesh_id, r.transparent_mesh_id),
@@ -158,7 +156,6 @@ impl ChunkLoadingSystem {
                 }
             }
 
-            // Cleanup both opaque and transparent meshes
             if let Some(mesh_id) = info.opaque_mesh_id_to_remove {
                 game_state.renderer.cleanup_mesh_buffers(mesh_id);
                 game_state.mesh_registry.remove_mesh(mesh_id);
@@ -205,7 +202,9 @@ impl ChunkLoadingSystem {
         for offset in neighbor_offsets {
             let neighbor_coord =
                 ChunkCoord(coord.0 + offset.0, coord.1 + offset.1, coord.2 + offset.2);
-            if neighbor_coord.1 >= MIN_CHUNK_Y && neighbor_coord.1 <= MAX_CHUNK_Y {
+            if neighbor_coord.1 >= game_state.config.min_chunk_y
+                && neighbor_coord.1 <= game_state.config.max_chunk_y
+            {
                 if let Some(neighbor_entity) = game_state.chunk_entity_map.get(&neighbor_coord) {
                     if game_state.world.contains(*neighbor_entity)
                         && game_state

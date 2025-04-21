@@ -15,9 +15,9 @@ pub mod components {
 
     pub use block::BlockType;
     pub use chunk::{
-        chunk_coord_to_aabb_center, chunk_coord_to_world_pos, world_to_chunk_coords,
-        world_to_local_coords, ChunkCoord, ChunkData, ChunkDirty, ChunkModified, CHUNK_DEPTH,
-        CHUNK_EXTENTS, CHUNK_HEIGHT, CHUNK_SIZE, CHUNK_WIDTH, MAX_CHUNK_Y, MIN_CHUNK_Y,
+        chunk_coord_to_aabb_center, chunk_coord_to_world_pos, get_chunk_extents,
+        world_to_chunk_coords, world_to_local_coords, ChunkCoord, ChunkData, ChunkDirty,
+        ChunkModified,
     };
     pub use lod::LOD;
     pub use renderable::Renderable;

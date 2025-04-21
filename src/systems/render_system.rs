@@ -1,29 +1,10 @@
 use crate::components::{
-    chunk_coord_to_aabb_center, ChunkCoord, Renderable, Transform, CHUNK_EXTENTS,
+    chunk_coord_to_aabb_center, get_chunk_extents, ChunkCoord, Renderable, Transform,
 };
+use crate::resources::Config;
 use crate::state::GameState;
 use glam::{Mat3, Mat4, Quat, Vec3};
 use std::f32::consts::PI;
-
-const MIN_LIGHT_LEVEL: f32 = 0.15;
-const MAX_LIGHT_LEVEL: f32 = 1.0;
-const SUNRISE_CENTER_TIME: f32 = 0.22;
-const SUNSET_CENTER_TIME: f32 = 0.72;
-const DAY_NIGHT_TRANSITION_DURATION: f32 = 0.05;
-
-const SUNRISE_START_TIME: f32 = SUNRISE_CENTER_TIME - DAY_NIGHT_TRANSITION_DURATION;
-const SUNRISE_END_TIME: f32 = SUNRISE_CENTER_TIME + DAY_NIGHT_TRANSITION_DURATION;
-const SUNSET_START_TIME: f32 = SUNSET_CENTER_TIME - DAY_NIGHT_TRANSITION_DURATION;
-const SUNSET_END_TIME: f32 = SUNSET_CENTER_TIME + DAY_NIGHT_TRANSITION_DURATION;
-
-const MIDNIGHT_COLOR: Vec3 = Vec3::new(0.01, 0.01, 0.05);
-const NOON_COLOR: Vec3 = Vec3::new(0.5, 0.8, 1.0);
-const SUNRISE_PEAK_COLOR: Vec3 = Vec3::new(0.9, 0.6, 0.3);
-const SUNSET_PEAK_COLOR: Vec3 = Vec3::new(0.9, 0.5, 0.3);
-
-const MIN_AMBIENT_INTENSITY: f32 = 0.25;
-const MAX_AMBIENT_INTENSITY: f32 = 1.0;
-const MIN_ABSOLUTE_AMBIENT: f32 = 0.15;
 
 pub struct RenderSystem {}
 
@@ -33,15 +14,17 @@ impl RenderSystem {
     }
 
     pub fn render(&self, game_state: &mut GameState) {
+        let config = &game_state.config;
         let time = game_state.time_of_day;
-        let sky_color = calculate_sky_color(time);
-        let light_level = calculate_light_level(time);
+        let sky_color = calculate_sky_color(time, config);
+        let light_level = calculate_light_level(time, config);
         let night_factor = (1.0
-            - (light_level - MIN_LIGHT_LEVEL) / (MAX_LIGHT_LEVEL - MIN_LIGHT_LEVEL))
+            - (light_level - config.min_light_level)
+                / (config.max_light_level - config.min_light_level))
             .clamp(0.0, 1.0);
 
-        let ambient_intensity =
-            MIN_AMBIENT_INTENSITY + (MAX_AMBIENT_INTENSITY - MIN_AMBIENT_INTENSITY) * light_level;
+        let ambient_intensity = config.min_ambient_intensity
+            + (config.max_ambient_intensity - config.min_ambient_intensity) * light_level;
         let ambient_color = sky_color * ambient_intensity;
 
         let angle = time * 2.0 * PI;
@@ -51,8 +34,9 @@ impl RenderSystem {
         let sun_color = Vec3::new(1.0, 0.98, 0.9);
         let moon_color = Vec3::new(0.15, 0.175, 0.25);
 
-        let sun_blend_factor =
-            ((light_level - MIN_LIGHT_LEVEL) / (MAX_LIGHT_LEVEL - MIN_LIGHT_LEVEL)).clamp(0.0, 1.0);
+        let sun_blend_factor = ((light_level - config.min_light_level)
+            / (config.max_light_level - config.min_light_level))
+            .clamp(0.0, 1.0);
 
         let light_direction = sun_dir.lerp(moon_dir, 1.0 - sun_blend_factor).normalize();
         let light_color = sun_color.lerp(moon_color, 1.0 - sun_blend_factor);
@@ -133,13 +117,13 @@ impl RenderSystem {
             .set_uniform_vec3("lightColor", &light_color);
         game_state
             .shader_program
-            .set_uniform_float("minAmbientContribution", MIN_ABSOLUTE_AMBIENT);
+            .set_uniform_float("minAmbientContribution", config.min_absolute_ambient);
         game_state
             .shader_program
             .set_uniform_vec3("cameraPosition", &camera_pos);
         game_state
             .shader_program
-            .set_uniform_float("shininess", 32.0);
+            .set_uniform_float("shininess", config.material_shininess);
 
         let sun_layer = game_state
             .texture_manager
@@ -222,8 +206,9 @@ impl RenderSystem {
             .query::<(&Transform, &Renderable, &ChunkCoord)>()
             .iter()
         {
-            let aabb_center = chunk_coord_to_aabb_center(*chunk_coord);
-            if !frustum.intersects_aabb(aabb_center, CHUNK_EXTENTS) {
+            let aabb_center = chunk_coord_to_aabb_center(&game_state.config, *chunk_coord);
+            let chunk_extents = get_chunk_extents(&game_state.config);
+            if !frustum.intersects_aabb(aabb_center, chunk_extents) {
                 continue;
             }
 
@@ -256,8 +241,9 @@ impl RenderSystem {
             .query::<(&Transform, &Renderable, &ChunkCoord)>()
             .iter()
         {
-            let aabb_center = chunk_coord_to_aabb_center(*chunk_coord);
-            if !frustum.intersects_aabb(aabb_center, CHUNK_EXTENTS) {
+            let aabb_center = chunk_coord_to_aabb_center(&game_state.config, *chunk_coord);
+            let chunk_extents = get_chunk_extents(&game_state.config);
+            if !frustum.intersects_aabb(aabb_center, chunk_extents) {
                 continue;
             }
 
@@ -291,41 +277,59 @@ impl RenderSystem {
     }
 }
 
-fn calculate_light_level(time: f32) -> f32 {
-    if (SUNRISE_END_TIME..SUNSET_START_TIME).contains(&time) {
-        MAX_LIGHT_LEVEL
-    } else if (SUNRISE_START_TIME..SUNRISE_END_TIME).contains(&time) {
-        let factor = (time - SUNRISE_START_TIME) / (SUNRISE_END_TIME - SUNRISE_START_TIME);
-        MIN_LIGHT_LEVEL + (MAX_LIGHT_LEVEL - MIN_LIGHT_LEVEL) * factor.clamp(0.0, 1.0)
-    } else if (SUNSET_START_TIME..SUNSET_END_TIME).contains(&time) {
-        let factor = (time - SUNSET_START_TIME) / (SUNSET_END_TIME - SUNSET_START_TIME);
-        MAX_LIGHT_LEVEL - (MAX_LIGHT_LEVEL - MIN_LIGHT_LEVEL) * factor.clamp(0.0, 1.0)
+fn calculate_light_level(time: f32, config: &Config) -> f32 {
+    let sunrise_start = config.sunrise_center_time - config.day_night_transition_duration;
+    let sunrise_end = config.sunrise_center_time + config.day_night_transition_duration;
+    let sunset_start = config.sunset_center_time - config.day_night_transition_duration;
+    let sunset_end = config.sunset_center_time + config.day_night_transition_duration;
+
+    if (sunrise_end..sunset_start).contains(&time) {
+        config.max_light_level
+    } else if (sunrise_start..sunrise_end).contains(&time) {
+        let factor = (time - sunrise_start) / (sunrise_end - sunrise_start);
+        config.min_light_level
+            + (config.max_light_level - config.min_light_level) * factor.clamp(0.0, 1.0)
+    } else if (sunset_start..sunset_end).contains(&time) {
+        let factor = (time - sunset_start) / (sunset_end - sunset_start);
+        config.max_light_level
+            - (config.max_light_level - config.min_light_level) * factor.clamp(0.0, 1.0)
     } else {
-        MIN_LIGHT_LEVEL
+        config.min_light_level
     }
 }
 
-fn calculate_sky_color(time: f32) -> Vec3 {
-    if (SUNRISE_END_TIME..SUNSET_START_TIME).contains(&time) {
-        NOON_COLOR
-    } else if (SUNRISE_START_TIME..SUNRISE_END_TIME).contains(&time) {
-        let factor =
-            ((time - SUNRISE_START_TIME) / (SUNRISE_END_TIME - SUNRISE_START_TIME)).clamp(0.0, 1.0);
+fn calculate_sky_color(time: f32, config: &Config) -> Vec3 {
+    let sunrise_start = config.sunrise_center_time - config.day_night_transition_duration;
+    let sunrise_end = config.sunrise_center_time + config.day_night_transition_duration;
+    let sunset_start = config.sunset_center_time - config.day_night_transition_duration;
+    let sunset_end = config.sunset_center_time + config.day_night_transition_duration;
+
+    if (sunrise_end..sunset_start).contains(&time) {
+        config.noon_color
+    } else if (sunrise_start..sunrise_end).contains(&time) {
+        let factor = ((time - sunrise_start) / (sunrise_end - sunrise_start)).clamp(0.0, 1.0);
         if factor < 0.5 {
-            MIDNIGHT_COLOR.lerp(SUNRISE_PEAK_COLOR, factor * 2.0)
+            config
+                .midnight_color
+                .lerp(config.sunrise_peak_color, factor * 2.0)
         } else {
-            SUNRISE_PEAK_COLOR.lerp(NOON_COLOR, (factor - 0.5) * 2.0)
+            config
+                .sunrise_peak_color
+                .lerp(config.noon_color, (factor - 0.5) * 2.0)
         }
-    } else if (SUNSET_START_TIME..SUNSET_END_TIME).contains(&time) {
-        let factor =
-            ((time - SUNSET_START_TIME) / (SUNSET_END_TIME - SUNSET_START_TIME)).clamp(0.0, 1.0);
+    } else if (sunset_start..sunset_end).contains(&time) {
+        let factor = ((time - sunset_start) / (sunset_end - sunset_start)).clamp(0.0, 1.0);
         if factor < 0.5 {
-            NOON_COLOR.lerp(SUNSET_PEAK_COLOR, factor * 2.0)
+            config
+                .noon_color
+                .lerp(config.sunset_peak_color, factor * 2.0)
         } else {
-            SUNSET_PEAK_COLOR.lerp(MIDNIGHT_COLOR, (factor - 0.5) * 2.0)
+            config
+                .sunset_peak_color
+                .lerp(config.midnight_color, (factor - 0.5) * 2.0)
         }
     } else {
-        MIDNIGHT_COLOR
+        config.midnight_color
     }
 }
 

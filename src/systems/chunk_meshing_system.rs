@@ -37,8 +37,10 @@ impl ChunkMeshingSystem {
 
     pub fn update_lod_parameters(&mut self, game_state: &GameState) {
         let camera_pos = game_state.camera.position;
-        let cam_chunk_x = world_to_chunk_coords(camera_pos.x.floor() as i32, 0, 0).0;
-        let cam_chunk_z = world_to_chunk_coords(0, 0, camera_pos.z.floor() as i32).2;
+        let cam_chunk_x =
+            world_to_chunk_coords(&game_state.config, camera_pos.x.floor() as i32, 0, 0).0;
+        let cam_chunk_z =
+            world_to_chunk_coords(&game_state.config, 0, 0, camera_pos.z.floor() as i32).2;
         self.last_camera_chunk_coord_xz = Some((cam_chunk_x, cam_chunk_z));
 
         let lod1_dist = game_state.config.load_distance;
@@ -170,7 +172,7 @@ impl ChunkMeshingSystem {
                         || final_opaque_mesh_id.is_some()
                         || final_transparent_mesh_id.is_some()
                     {
-                        let world_pos = chunk_coord_to_world_pos(coord);
+                        let world_pos = chunk_coord_to_world_pos(&game_state.config, coord);
                         let new_renderable =
                             Renderable::new(final_opaque_mesh_id, final_transparent_mesh_id);
                         let components = (
@@ -389,8 +391,6 @@ impl ChunkMeshingSystem {
         coord: ChunkCoord,
         game_state: &GameState,
     ) -> Option<[Option<ChunkData>; 6]> {
-        use crate::components::{MAX_CHUNK_Y, MIN_CHUNK_Y};
-
         let neighbor_offsets = [
             (1, 0, 0),
             (-1, 0, 0),
@@ -406,7 +406,9 @@ impl ChunkMeshingSystem {
             let neighbor_coord =
                 ChunkCoord(coord.0 + offset.0, coord.1 + offset.1, coord.2 + offset.2);
 
-            if neighbor_coord.1 >= MIN_CHUNK_Y && neighbor_coord.1 <= MAX_CHUNK_Y {
+            if neighbor_coord.1 >= game_state.config.min_chunk_y
+                && neighbor_coord.1 <= game_state.config.max_chunk_y
+            {
                 if let Some(neighbor_entity) = game_state.chunk_entity_map.get(&neighbor_coord) {
                     match game_state.world.get::<&ChunkData>(*neighbor_entity) {
                         Ok(data_ref) => {

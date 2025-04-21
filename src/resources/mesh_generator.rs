@@ -1,7 +1,5 @@
-use crate::components::{
-    BlockType, ChunkCoord, ChunkData, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH, LOD,
-};
-use crate::resources::{ChunkMeshData, Mesh};
+use crate::components::{BlockType, ChunkCoord, ChunkData, LOD};
+use crate::resources::{ChunkMeshData, Config, Mesh};
 use std::collections::HashMap;
 
 trait EffectiveBlockDataSource {
@@ -12,6 +10,7 @@ trait EffectiveBlockDataSource {
         z: usize,
         eff_w: usize,
         eff_d: usize,
+        config: &Config,
     ) -> BlockType;
 }
 
@@ -24,8 +23,9 @@ impl EffectiveBlockDataSource for ChunkData {
         z: usize,
         _eff_w: usize,
         _eff_d: usize,
+        config: &Config,
     ) -> BlockType {
-        self.get_block(x, y, z)
+        self.get_block(config, x, y, z)
     }
 }
 
@@ -38,6 +38,7 @@ impl EffectiveBlockDataSource for Vec<BlockType> {
         z: usize,
         eff_w: usize,
         eff_d: usize,
+        _config: &Config,
     ) -> BlockType {
         let index = x + z * eff_w + y * eff_w * eff_d;
         *self.get(index).unwrap_or(&BlockType::Air)
@@ -66,6 +67,7 @@ impl MeshGenerator {
         neighbors: &[Option<ChunkData>; 6],
         texture_layers: &HashMap<String, f32>,
         lod: LOD,
+        config: &Config,
     ) -> Option<ChunkMeshData> {
         let mut opaque_vertices: Vec<f32> = Vec::new();
         let mut opaque_indices: Vec<u32> = Vec::new();
@@ -78,18 +80,18 @@ impl MeshGenerator {
         let scale_factor = lod.scale_factor();
         let downsample_factor = lod.downsample_factor();
 
-        if CHUNK_WIDTH % downsample_factor != 0
-            || CHUNK_HEIGHT % downsample_factor != 0
-            || CHUNK_DEPTH % downsample_factor != 0
+        if config.chunk_width % downsample_factor != 0
+            || config.chunk_height % downsample_factor != 0
+            || config.chunk_depth % downsample_factor != 0
         {
             eprintln!("Warning: Chunk dimensions ({},{},{}) not divisible by downsample factor {} for LOD {:?}. Skipping mesh generation for {:?}.",
-                CHUNK_WIDTH, CHUNK_HEIGHT, CHUNK_DEPTH, downsample_factor, lod, chunk_coord);
+                config.chunk_width, config.chunk_height, config.chunk_depth, downsample_factor, lod, chunk_coord);
             return None;
         }
 
-        let effective_width = CHUNK_WIDTH / downsample_factor;
-        let effective_height = CHUNK_HEIGHT / downsample_factor;
-        let effective_depth = CHUNK_DEPTH / downsample_factor;
+        let effective_width = config.chunk_width / downsample_factor;
+        let effective_height = config.chunk_height / downsample_factor;
+        let effective_depth = config.chunk_depth / downsample_factor;
 
         let downsampled_data;
         let data_to_mesh: &dyn EffectiveBlockDataSource = if downsample_factor > 1 {
@@ -97,7 +99,7 @@ impl MeshGenerator {
                 eprintln!("Warning: Effective dimensions are zero after downsampling for LOD {:?} in chunk {:?}. Skipping.", lod, chunk_coord);
                 return None;
             }
-            downsampled_data = self.downsample_chunk(chunk_data, downsample_factor);
+            downsampled_data = self.downsample_chunk(chunk_data, downsample_factor, config);
             &downsampled_data
         } else {
             chunk_data
@@ -112,6 +114,7 @@ impl MeshGenerator {
                         ez,
                         effective_width,
                         effective_depth,
+                        config,
                     );
 
                     if current_block_type == BlockType::Air {
@@ -156,9 +159,10 @@ impl MeshGenerator {
                                             y_start,
                                             z_start,
                                             downsample_factor,
+                                            config,
                                         )
                                     } else {
-                                        neighbor_chunk_data.get_block(nnex, nney, nnez)
+                                        neighbor_chunk_data.get_block(config, nnex, nney, nnez)
                                     }
                                 }
                                 None => BlockType::Air,
@@ -170,6 +174,7 @@ impl MeshGenerator {
                                 nez as usize,
                                 effective_width,
                                 effective_depth,
+                                config,
                             )
                         };
 
@@ -231,7 +236,7 @@ impl MeshGenerator {
                                     face_index,
                                     layer_index,
                                     scale: scale_factor,
-                                    normal, // Pass normal
+                                    normal,
                                 },
                                 target_vertices,
                                 target_indices,
@@ -271,13 +276,18 @@ impl MeshGenerator {
         }
     }
 
-    fn downsample_chunk(&self, chunk_data: &ChunkData, factor: usize) -> Vec<BlockType> {
+    fn downsample_chunk(
+        &self,
+        chunk_data: &ChunkData,
+        factor: usize,
+        config: &Config,
+    ) -> Vec<BlockType> {
         if factor <= 1 {
             panic!("Downsample factor must be > 1, got {}", factor);
         }
-        let eff_w = CHUNK_WIDTH / factor;
-        let eff_h = CHUNK_HEIGHT / factor;
-        let eff_d = CHUNK_DEPTH / factor;
+        let eff_w = config.chunk_width / factor;
+        let eff_h = config.chunk_height / factor;
+        let eff_d = config.chunk_depth / factor;
         let mut low_res_data = vec![BlockType::Air; eff_w * eff_h * eff_d];
 
         for ey in 0..eff_h {
@@ -288,7 +298,7 @@ impl MeshGenerator {
                     let z_start = ez * factor;
 
                     let representative_block = Self::calculate_representative_block(
-                        chunk_data, x_start, y_start, z_start, factor,
+                        chunk_data, x_start, y_start, z_start, factor, config,
                     );
 
                     let index = ex + ez * eff_w + ey * eff_w * eff_d;
@@ -306,6 +316,7 @@ impl MeshGenerator {
         y_start: usize,
         z_start: usize,
         factor: usize,
+        config: &Config,
     ) -> BlockType {
         let mut exposed_block_counts: HashMap<BlockType, usize> = HashMap::new();
         let mut internal_block_counts: HashMap<BlockType, usize> = HashMap::new();
@@ -317,23 +328,28 @@ impl MeshGenerator {
                     let y = y_start + y_offset;
                     let z = z_start + z_offset;
 
-                    if x < CHUNK_WIDTH && y < CHUNK_HEIGHT && z < CHUNK_DEPTH {
-                        let high_res_block = chunk_data.get_block(x, y, z);
+                    if x < config.chunk_width && y < config.chunk_height && z < config.chunk_depth {
+                        let high_res_block = chunk_data.get_block(config, x, y, z);
 
                         if high_res_block != BlockType::Air {
                             let mut is_exposed = false;
                             for face_index in 0..6 {
                                 let (nx, ny, nz) =
-                                    Self::get_high_res_neighbor_coords(x, y, z, face_index);
+                                    Self::get_high_res_neighbor_coords(config, x, y, z, face_index);
 
                                 let neighbor_block = if nx >= 0
-                                    && nx < CHUNK_WIDTH as i32
+                                    && nx < config.chunk_width as i32
                                     && ny >= 0
-                                    && ny < CHUNK_HEIGHT as i32
+                                    && ny < config.chunk_height as i32
                                     && nz >= 0
-                                    && nz < CHUNK_DEPTH as i32
+                                    && nz < config.chunk_depth as i32
                                 {
-                                    chunk_data.get_block(nx as usize, ny as usize, nz as usize)
+                                    chunk_data.get_block(
+                                        config,
+                                        nx as usize,
+                                        ny as usize,
+                                        nz as usize,
+                                    )
                                 } else {
                                     BlockType::Air
                                 };
@@ -371,6 +387,7 @@ impl MeshGenerator {
 
     #[inline]
     fn get_high_res_neighbor_coords(
+        _config: &Config,
         x: usize,
         y: usize,
         z: usize,
@@ -453,7 +470,7 @@ impl MeshGenerator {
             3 => 1, // Bottom (-Y)-> Index 1
             4 => 4, // Front (+Z) -> Index 4
             5 => 5, // Back (-Z)  -> Index 5
-            _ => 0, // Default fallback
+            _ => 0,
         }
     }
 
