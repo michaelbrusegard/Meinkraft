@@ -47,9 +47,11 @@ impl Renderer {
     }
 
     fn create_celestial_buffers(&mut self) {
-        let vertices: [f32; 20] = [
-            -0.5, -0.5, 0.0, 0.0, 0.0, 0.5, -0.5, 0.0, 1.0, 0.0, 0.5, 0.5, 0.0, 1.0, 1.0, -0.5,
-            0.5, 0.0, 0.0, 1.0,
+        let vertices: [f32; 32] = [
+            -0.5, -0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, // Bottom-left
+            0.5, -0.5, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, // Bottom-right
+            0.5, 0.5, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, // Top-right
+            -0.5, 0.5, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, // Top-left
         ];
         let indices: [u32; 6] = [0, 1, 2, 2, 3, 0];
 
@@ -76,10 +78,12 @@ impl Renderer {
                 gl::STATIC_DRAW,
             );
 
-            let stride = (5 * std::mem::size_of::<f32>()) as gl::types::GLsizei;
+            let stride = (8 * std::mem::size_of::<f32>()) as gl::types::GLsizei;
+
             self.gl
                 .VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, stride, std::ptr::null());
             self.gl.EnableVertexAttribArray(0);
+
             self.gl.VertexAttribPointer(
                 1,
                 2,
@@ -89,6 +93,16 @@ impl Renderer {
                 (3 * std::mem::size_of::<f32>()) as *const _,
             );
             self.gl.EnableVertexAttribArray(1);
+
+            self.gl.VertexAttribPointer(
+                3,
+                3,
+                gl::FLOAT,
+                gl::FALSE,
+                stride,
+                (5 * std::mem::size_of::<f32>()) as *const _,
+            );
+            self.gl.EnableVertexAttribArray(3);
 
             self.gl.BindVertexArray(0);
             self.gl.BindBuffer(gl::ARRAY_BUFFER, 0);
@@ -185,7 +199,7 @@ impl Renderer {
                 gl::STATIC_DRAW,
             );
 
-            let stride = (6 * std::mem::size_of::<f32>()) as gl::types::GLsizei;
+            let stride = (9 * std::mem::size_of::<f32>()) as gl::types::GLsizei;
 
             self.gl
                 .VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, stride, std::ptr::null());
@@ -210,6 +224,16 @@ impl Renderer {
                 (5 * std::mem::size_of::<f32>()) as *const _,
             );
             self.gl.EnableVertexAttribArray(2);
+
+            self.gl.VertexAttribPointer(
+                3,
+                3,
+                gl::FLOAT,
+                gl::FALSE,
+                stride,
+                (6 * std::mem::size_of::<f32>()) as *const _,
+            );
+            self.gl.EnableVertexAttribArray(3);
 
             self.vaos.insert(mesh_id, vao);
             self.vbos.insert(mesh_id, vbo);

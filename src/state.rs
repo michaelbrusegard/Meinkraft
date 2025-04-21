@@ -60,9 +60,14 @@ impl GameState {
         shader_program.register_uniform("viewMatrix");
         shader_program.register_uniform("projectionMatrix");
         shader_program.register_uniform("blockTexture");
-        shader_program.register_uniform("lightLevel");
+        shader_program.register_uniform("lightDirection");
+        shader_program.register_uniform("ambientColor");
+        shader_program.register_uniform("lightColor");
+        shader_program.register_uniform("minAmbientContribution");
         shader_program.register_uniform("isCelestial");
         shader_program.register_uniform("celestialLayerIndex");
+        shader_program.register_uniform("cameraPosition");
+        shader_program.register_uniform("shininess");
 
         let mut star_shader_program = ShaderProgram::from_sources(
             &renderer.gl,
@@ -193,7 +198,6 @@ impl GameState {
     }
 
     pub fn shutdown_workers(&mut self) {
-        println!("Shutting down worker pool...");
         if let Some(pool) = self.worker_pool.take() {
             pool.shutdown();
         } else {

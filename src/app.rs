@@ -126,7 +126,6 @@ impl ApplicationHandler for App {
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
-        println!("Exiting application.");
         if let Some(game_state) = self.game_state.take() {
             let mut gs = game_state;
             gs.shutdown_workers();

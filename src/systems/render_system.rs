@@ -21,6 +21,10 @@ const NOON_COLOR: Vec3 = Vec3::new(0.5, 0.8, 1.0);
 const SUNRISE_PEAK_COLOR: Vec3 = Vec3::new(0.9, 0.6, 0.3);
 const SUNSET_PEAK_COLOR: Vec3 = Vec3::new(0.9, 0.5, 0.3);
 
+const MIN_AMBIENT_INTENSITY: f32 = 0.25;
+const MAX_AMBIENT_INTENSITY: f32 = 1.0;
+const MIN_ABSOLUTE_AMBIENT: f32 = 0.15;
+
 pub struct RenderSystem {}
 
 impl RenderSystem {
@@ -32,7 +36,26 @@ impl RenderSystem {
         let time = game_state.time_of_day;
         let sky_color = calculate_sky_color(time);
         let light_level = calculate_light_level(time);
-        let night_factor = (1.0 - (light_level - 0.15) / (1.0 - 0.15)).clamp(0.0, 1.0);
+        let night_factor = (1.0
+            - (light_level - MIN_LIGHT_LEVEL) / (MAX_LIGHT_LEVEL - MIN_LIGHT_LEVEL))
+            .clamp(0.0, 1.0);
+
+        let ambient_intensity =
+            MIN_AMBIENT_INTENSITY + (MAX_AMBIENT_INTENSITY - MIN_AMBIENT_INTENSITY) * light_level;
+        let ambient_color = sky_color * ambient_intensity;
+
+        let angle = time * 2.0 * PI;
+        let sun_dir = Vec3::new(angle.sin(), (angle + PI).cos(), 0.0).normalize();
+        let moon_dir = -sun_dir;
+
+        let sun_color = Vec3::new(1.0, 0.98, 0.9);
+        let moon_color = Vec3::new(0.15, 0.175, 0.25);
+
+        let sun_blend_factor =
+            ((light_level - MIN_LIGHT_LEVEL) / (MAX_LIGHT_LEVEL - MIN_LIGHT_LEVEL)).clamp(0.0, 1.0);
+
+        let light_direction = sun_dir.lerp(moon_dir, 1.0 - sun_blend_factor).normalize();
+        let light_color = sun_color.lerp(moon_color, 1.0 - sun_blend_factor);
 
         game_state.renderer.clear(sky_color);
 
@@ -101,7 +124,22 @@ impl RenderSystem {
         game_state.shader_program.set_uniform_int("blockTexture", 0);
         game_state
             .shader_program
-            .set_uniform_float("lightLevel", light_level);
+            .set_uniform_vec3("lightDirection", &light_direction);
+        game_state
+            .shader_program
+            .set_uniform_vec3("ambientColor", &ambient_color);
+        game_state
+            .shader_program
+            .set_uniform_vec3("lightColor", &light_color);
+        game_state
+            .shader_program
+            .set_uniform_float("minAmbientContribution", MIN_ABSOLUTE_AMBIENT);
+        game_state
+            .shader_program
+            .set_uniform_vec3("cameraPosition", &camera_pos);
+        game_state
+            .shader_program
+            .set_uniform_float("shininess", 32.0);
 
         let sun_layer = game_state
             .texture_manager
@@ -114,8 +152,6 @@ impl RenderSystem {
         let celestial_distance = camera_z_far * 0.9;
         let celestial_scale = camera_z_far * 0.05;
 
-        let angle = time * 2.0 * PI;
-        let sun_dir = Vec3::new(angle.sin(), (angle + PI).cos(), 0.0).normalize();
         let moon_dir = -sun_dir;
 
         let sun_pos = camera_pos + sun_dir * celestial_distance;
@@ -180,9 +216,6 @@ impl RenderSystem {
         game_state
             .shader_program
             .set_uniform_bool("isCelestial", false);
-        game_state
-            .shader_program
-            .set_uniform_float("lightLevel", light_level);
 
         for (_entity, (transform, renderable, chunk_coord)) in game_state
             .world

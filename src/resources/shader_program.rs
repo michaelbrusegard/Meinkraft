@@ -132,6 +132,14 @@ impl ShaderProgram {
         }
     }
 
+    pub fn set_uniform_vec3(&self, name: &str, value: &glam::Vec3) {
+        if let Some(&location) = self.uniform_locations.get(name) {
+            unsafe {
+                self.gl.Uniform3fv(location, 1, value.as_ref().as_ptr());
+            }
+        }
+    }
+
     pub fn set_uniform_bool(&self, name: &str, value: bool) {
         if let Some(&location) = self.uniform_locations.get(name) {
             unsafe {

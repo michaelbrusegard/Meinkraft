@@ -49,6 +49,7 @@ struct FaceParams {
     face_index: usize,
     layer_index: f32,
     scale: f32,
+    normal: [f32; 3],
 }
 
 pub struct MeshGenerator {}
@@ -198,6 +199,16 @@ impl MeshGenerator {
                                 &0.0
                             });
 
+                            let normal = match face_index {
+                                0 => [1.0, 0.0, 0.0],  // Right (+X)
+                                1 => [-1.0, 0.0, 0.0], // Left (-X)
+                                2 => [0.0, 1.0, 0.0],  // Top (+Y)
+                                3 => [0.0, -1.0, 0.0], // Bottom (-Y)
+                                4 => [0.0, 0.0, 1.0],  // Front (+Z)
+                                5 => [0.0, 0.0, -1.0], // Back (-Z)
+                                _ => [0.0, 1.0, 0.0],  // Default Up
+                            };
+
                             let is_transparent = !current_block_type.is_culled_by();
                             let (target_vertices, target_indices, target_index_offset) =
                                 if is_transparent {
@@ -220,6 +231,7 @@ impl MeshGenerator {
                                     face_index,
                                     layer_index,
                                     scale: scale_factor,
+                                    normal, // Pass normal
                                 },
                                 target_vertices,
                                 target_indices,
@@ -453,6 +465,7 @@ impl MeshGenerator {
     ) {
         let (cx, cy, cz) = (params.position[0], params.position[1], params.position[2]);
         let layer = params.layer_index;
+        let normal = params.normal;
         let scale = params.scale;
         let half_scale = scale / 2.0;
 
@@ -483,6 +496,7 @@ impl MeshGenerator {
             vertices.extend_from_slice(&p[vertex_indices[i]]);
             vertices.extend_from_slice(&uv[uv_indices[i]]);
             vertices.push(layer);
+            vertices.extend_from_slice(&normal);
         }
 
         indices.extend_from_slice(&[
