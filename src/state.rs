@@ -24,6 +24,7 @@ pub struct GameState {
     pub camera: Camera,
     pub renderer: Renderer,
     pub shader_program: ShaderProgram,
+    pub star_shader_program: ShaderProgram, // Added for stars
     pub input_state: InputState,
     pub texture_manager: Arc<TextureManager>,
     pub mesh_registry: MeshRegistry,
@@ -42,13 +43,41 @@ pub struct GameState {
     worker_pool: Option<WorkerPool>,
     pub time_of_day: f32,
     pub day_cycle_speed: f32,
+    pub total_time: f32,
 }
 
 impl GameState {
     pub fn new(gl: crate::gl::Gl, width: u32, height: u32) -> Self {
         let config = Config::new();
         let renderer = Renderer::new(gl.clone());
-        let shader_program = ShaderProgram::new(&renderer.gl);
+        let mut shader_program = ShaderProgram::from_sources(
+            &renderer.gl,
+            include_str!("./shaders/vertex.glsl"),
+            include_str!("./shaders/fragment.glsl"),
+        )
+        .expect("Failed to create main shader program");
+
+        shader_program.register_uniform("modelMatrix");
+        shader_program.register_uniform("viewMatrix");
+        shader_program.register_uniform("projectionMatrix");
+        shader_program.register_uniform("blockTexture");
+        shader_program.register_uniform("lightLevel");
+        shader_program.register_uniform("isCelestial");
+        shader_program.register_uniform("celestialLayerIndex");
+
+        let mut star_shader_program = ShaderProgram::from_sources(
+            &renderer.gl,
+            include_str!("./shaders/stars_vertex.glsl"),
+            include_str!("./shaders/stars_fragment.glsl"),
+        )
+        .expect("Failed to create star shader program");
+
+        star_shader_program.register_uniform("viewMatrix");
+        star_shader_program.register_uniform("projectionMatrix");
+        star_shader_program.register_uniform("starDistance");
+        star_shader_program.register_uniform("time");
+        star_shader_program.register_uniform("nightFactor");
+
         let camera = Camera::new(
             Vec3::new(0.0, 20.0, 0.0),
             Vec3::new(0.0, 0.0, 0.0),
@@ -109,6 +138,7 @@ impl GameState {
             camera,
             renderer,
             shader_program,
+            star_shader_program,
             texture_manager,
             mesh_registry,
             mesh_generator,
@@ -126,6 +156,7 @@ impl GameState {
             worker_pool: None,
             time_of_day: 0.5,
             day_cycle_speed: 0.01,
+            total_time: 0.0,
         }
     }
 

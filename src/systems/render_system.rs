@@ -2,7 +2,7 @@ use crate::components::{
     chunk_coord_to_aabb_center, ChunkCoord, Renderable, Transform, CHUNK_EXTENTS,
 };
 use crate::state::GameState;
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat3, Mat4, Quat, Vec3};
 use std::f32::consts::PI;
 
 pub struct RenderSystem {}
@@ -16,13 +16,59 @@ impl RenderSystem {
         let time = game_state.time_of_day;
         let sky_color = calculate_sky_color(time);
         let light_level = calculate_light_level(time);
+        let night_factor = (1.0 - (light_level - 0.15) / (1.0 - 0.15)).clamp(0.0, 1.0);
 
         game_state.renderer.clear(sky_color);
-        game_state.shader_program.use_program();
 
         let view_matrix = game_state.camera.view_matrix();
         let projection_matrix = game_state.camera.projection_matrix();
         let frustum = game_state.camera.frustum();
+        let camera_pos = game_state.camera.position;
+        let camera_z_far = game_state.camera.z_far();
+
+        if night_factor > 0.0 {
+            game_state.star_shader_program.use_program();
+
+            unsafe {
+                game_state.renderer.gl.Enable(crate::gl::DEPTH_TEST);
+                game_state.renderer.gl.DepthMask(crate::gl::TRUE);
+                game_state.renderer.gl.Enable(crate::gl::PROGRAM_POINT_SIZE);
+            }
+
+            let view_matrix_no_translation = Mat4::from_mat3(Mat3::from_mat4(view_matrix));
+            game_state
+                .star_shader_program
+                .set_uniform_mat4("viewMatrix", &view_matrix_no_translation);
+            game_state
+                .star_shader_program
+                .set_uniform_mat4("projectionMatrix", &projection_matrix);
+
+            let star_distance = camera_z_far * 0.95;
+            game_state
+                .star_shader_program
+                .set_uniform_float("starDistance", star_distance);
+            game_state
+                .star_shader_program
+                .set_uniform_float("time", game_state.total_time);
+            game_state
+                .star_shader_program
+                .set_uniform_float("nightFactor", night_factor);
+
+            game_state.renderer.bind_star_vao();
+            unsafe {
+                game_state.renderer.gl.DrawArrays(
+                    crate::gl::POINTS,
+                    0,
+                    game_state.renderer.num_stars as i32,
+                );
+                game_state
+                    .renderer
+                    .gl
+                    .Disable(crate::gl::PROGRAM_POINT_SIZE);
+            }
+        }
+
+        game_state.shader_program.use_program();
 
         game_state
             .shader_program
@@ -30,7 +76,9 @@ impl RenderSystem {
         game_state
             .shader_program
             .set_uniform_mat4("projectionMatrix", &projection_matrix);
-
+        game_state
+            .shader_program
+            .set_uniform_bool("isCelestial", true);
         game_state
             .texture_manager
             .bind_texture_array(crate::gl::TEXTURE0);
@@ -38,8 +86,6 @@ impl RenderSystem {
         game_state
             .shader_program
             .set_uniform_float("lightLevel", light_level);
-
-        let camera_pos = game_state.camera.position;
 
         let sun_layer = game_state
             .texture_manager
@@ -49,7 +95,6 @@ impl RenderSystem {
             .texture_manager
             .get_layer_index("moon")
             .unwrap_or(0.0);
-        let camera_z_far = game_state.camera.z_far();
         let celestial_distance = camera_z_far * 0.9;
         let celestial_scale = camera_z_far * 0.05;
 
@@ -61,18 +106,14 @@ impl RenderSystem {
         let moon_pos = camera_pos + moon_dir * celestial_distance;
 
         unsafe {
-            game_state.renderer.gl.DepthMask(crate::gl::FALSE);
             game_state.renderer.gl.Disable(crate::gl::DEPTH_TEST);
+            game_state.renderer.gl.DepthMask(crate::gl::FALSE);
         }
 
         game_state.renderer.bind_celestial_vao();
-        game_state
-            .shader_program
-            .set_uniform_bool("isCelestial", true);
 
         let sun_forward = (camera_pos - sun_pos).normalize();
         let sun_rotation = Quat::from_rotation_arc(Vec3::Z, sun_forward);
-
         let sun_model_matrix = Mat4::from_scale_rotation_translation(
             Vec3::splat(celestial_scale),
             sun_rotation,
@@ -87,20 +128,17 @@ impl RenderSystem {
         unsafe {
             game_state.renderer.gl.DrawElements(
                 crate::gl::TRIANGLES,
-                6, // 6 indices for a quad
+                6,
                 crate::gl::UNSIGNED_INT,
                 std::ptr::null(),
             );
         }
 
-        // Render Moon (Always render)
-        // Calculate rotation to make the quad face the camera position
         let moon_forward = (camera_pos - moon_pos).normalize();
-        let moon_rotation = Quat::from_rotation_arc(Vec3::Z, moon_forward); // Assumes quad normal is Z+
-
+        let moon_rotation = Quat::from_rotation_arc(Vec3::Z, moon_forward);
         let moon_model_matrix = Mat4::from_scale_rotation_translation(
             Vec3::splat(celestial_scale),
-            moon_rotation, // Rotate to face camera position
+            moon_rotation,
             moon_pos,
         );
         game_state
@@ -112,25 +150,23 @@ impl RenderSystem {
         unsafe {
             game_state.renderer.gl.DrawElements(
                 crate::gl::TRIANGLES,
-                6, // 6 indices for a quad
+                6,
                 crate::gl::UNSIGNED_INT,
                 std::ptr::null(),
             );
         }
 
-        // Re-enable depth writing and testing for the world
         unsafe {
-            game_state.renderer.gl.Enable(crate::gl::DEPTH_TEST); // Re-enable depth test
+            game_state.renderer.gl.Enable(crate::gl::DEPTH_TEST);
             game_state.renderer.gl.DepthMask(crate::gl::TRUE);
         }
 
-        // --- Render World Chunks ---
         game_state
             .shader_program
-            .set_uniform_bool("isBillboard", false); // Reset billboard flag
+            .set_uniform_bool("isCelestial", false);
         game_state
             .shader_program
-            .set_uniform_bool("isCelestial", false); // Reset celestial flag
+            .set_uniform_float("lightLevel", light_level);
 
         for (_entity, (transform, renderable, chunk_coord)) in game_state
             .world
@@ -211,69 +247,58 @@ fn calculate_light_level(time: f32) -> f32 {
     let min_light = 0.15;
     let max_light = 1.0;
 
-    // Define very brief transition periods around sunrise (0.25) and sunset (0.75)
-    let transition_duration = 0.01; // Half duration on each side
-    let sunrise_start = 0.25 - transition_duration;
-    let sunrise_end = 0.25 + transition_duration;
-    let sunset_start = 0.75 - transition_duration;
-    let sunset_end = 0.75 + transition_duration;
+    let sunrise_center = 0.22;
+    let sunset_center = 0.72;
+    let transition_duration = 0.05;
+    let sunrise_start = sunrise_center - transition_duration;
+    let sunrise_end = sunrise_center + transition_duration;
+    let sunset_start = sunset_center - transition_duration;
+    let sunset_end = sunset_center + transition_duration;
 
     if time >= sunrise_end && time < sunset_start {
-        // Daytime
         max_light
     } else if time >= sunrise_start && time < sunrise_end {
-        // Sunrise transition: Min -> Max
         let factor = (time - sunrise_start) / (sunrise_end - sunrise_start);
         min_light + (max_light - min_light) * factor.clamp(0.0, 1.0)
     } else if time >= sunset_start && time < sunset_end {
-        // Sunset transition: Max -> Min
         let factor = (time - sunset_start) / (sunset_end - sunset_start);
         max_light - (max_light - min_light) * factor.clamp(0.0, 1.0)
     } else {
-        // Nighttime
         min_light
     }
 }
 
 fn calculate_sky_color(time: f32) -> Vec3 {
-    let midnight_color = Vec3::new(0.01, 0.01, 0.05); // Dark night sky
-    let noon_color = Vec3::new(0.5, 0.8, 1.0); // Bright blue day sky
-                                               // Define distinct sunrise/sunset colors for the brief transition peaks
-    let sunrise_peak_color = Vec3::new(0.9, 0.6, 0.3); // Orangey sunrise
-    let sunset_peak_color = Vec3::new(0.9, 0.5, 0.3); // Slightly redder sunset
+    let midnight_color = Vec3::new(0.01, 0.01, 0.05);
+    let noon_color = Vec3::new(0.5, 0.8, 1.0);
+    let sunrise_peak_color = Vec3::new(0.9, 0.6, 0.3);
+    let sunset_peak_color = Vec3::new(0.9, 0.5, 0.3);
 
-    // Define very brief transition periods around sunrise (0.25) and sunset (0.75)
-    let transition_duration = 0.01; // Half duration on each side
-    let sunrise_start = 0.25 - transition_duration;
-    let sunrise_end = 0.25 + transition_duration;
-    let sunset_start = 0.75 - transition_duration;
-    let sunset_end = 0.75 + transition_duration;
+    let sunrise_center = 0.22;
+    let sunset_center = 0.72;
+    let transition_duration = 0.05;
+    let sunrise_start = sunrise_center - transition_duration;
+    let sunrise_end = sunrise_center + transition_duration;
+    let sunset_start = sunset_center - transition_duration;
+    let sunset_end = sunset_center + transition_duration;
 
     if time >= sunrise_end && time < sunset_start {
-        // Daytime: Pure noon color
         noon_color
     } else if time >= sunrise_start && time < sunrise_end {
-        // Sunrise transition: Midnight -> Peak -> Noon
         let factor = ((time - sunrise_start) / (sunrise_end - sunrise_start)).clamp(0.0, 1.0);
         if factor < 0.5 {
-            // First half: Midnight -> Sunrise Peak
             midnight_color.lerp(sunrise_peak_color, factor * 2.0)
         } else {
-            // Second half: Sunrise Peak -> Noon
             sunrise_peak_color.lerp(noon_color, (factor - 0.5) * 2.0)
         }
     } else if time >= sunset_start && time < sunset_end {
-        // Sunset transition: Noon -> Peak -> Midnight
         let factor = ((time - sunset_start) / (sunset_end - sunset_start)).clamp(0.0, 1.0);
         if factor < 0.5 {
-            // First half: Noon -> Sunset Peak
             noon_color.lerp(sunset_peak_color, factor * 2.0)
         } else {
-            // Second half: Sunset Peak -> Midnight
             sunset_peak_color.lerp(midnight_color, (factor - 0.5) * 2.0)
         }
     } else {
-        // Nighttime: Pure midnight color
         midnight_color
     }
 }

@@ -109,6 +109,8 @@ impl ApplicationHandler for App {
             game_state.time_of_day += delta_time * game_state.day_cycle_speed;
             game_state.time_of_day %= 1.0;
 
+            game_state.total_time += delta_time;
+
             self.system_scheduler
                 .update_input(game_state, &self.input_manager);
 

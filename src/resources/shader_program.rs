@@ -3,9 +3,6 @@ use glam::Mat4;
 use std::collections::HashMap;
 use std::ffi::CString;
 
-const VERTEX_SHADER: &str = include_str!("../shaders/vertex.glsl");
-const FRAGMENT_SHADER: &str = include_str!("../shaders/fragment.glsl");
-
 pub struct ShaderProgram {
     gl: gl::Gl,
     pub program_id: gl::types::GLuint,
@@ -13,12 +10,9 @@ pub struct ShaderProgram {
 }
 
 impl ShaderProgram {
-    pub fn new(gl: &gl::Gl) -> Self {
-        let vertex_shader = Self::compile_shader(gl, gl::VERTEX_SHADER, VERTEX_SHADER)
-            .expect("Vertex shader compilation failed");
-
-        let fragment_shader = Self::compile_shader(gl, gl::FRAGMENT_SHADER, FRAGMENT_SHADER)
-            .expect("Fragment shader compilation failed");
+    pub fn from_sources(gl: &gl::Gl, vertex_src: &str, fragment_src: &str) -> Result<Self, String> {
+        let vertex_shader = Self::compile_shader(gl, gl::VERTEX_SHADER, vertex_src)?;
+        let fragment_shader = Self::compile_shader(gl, gl::FRAGMENT_SHADER, fragment_src)?;
 
         let program_id = unsafe {
             let program = gl.CreateProgram();
@@ -31,17 +25,23 @@ impl ShaderProgram {
             if success == 0 {
                 let mut len = 0;
                 gl.GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
-                let mut buffer = vec![0; len as usize - 1];
+                let mut buffer = vec![0; len as usize];
                 gl.GetProgramInfoLog(
                     program,
                     len,
                     std::ptr::null_mut(),
                     buffer.as_mut_ptr() as *mut gl::types::GLchar,
                 );
-                panic!(
-                    "{}",
-                    std::str::from_utf8(&buffer).expect("ProgramInfoLog not valid utf8")
-                );
+
+                let error_message = std::str::from_utf8(&buffer)
+                    .unwrap_or("ProgramInfoLog not valid utf8")
+                    .trim_end_matches('\0');
+
+                gl.DeleteShader(vertex_shader);
+                gl.DeleteShader(fragment_shader);
+                gl.DeleteProgram(program);
+
+                return Err(format!("Shader linking failed: {}", error_message));
             }
 
             gl.DeleteShader(vertex_shader);
@@ -50,21 +50,11 @@ impl ShaderProgram {
             program
         };
 
-        let mut shader = Self {
+        Ok(Self {
             gl: gl.clone(),
             program_id,
             uniform_locations: HashMap::new(),
-        };
-
-        shader.register_uniform("modelMatrix");
-        shader.register_uniform("viewMatrix");
-        shader.register_uniform("projectionMatrix");
-        shader.register_uniform("blockTexture");
-        shader.register_uniform("lightLevel");
-        shader.register_uniform("isCelestial");
-        shader.register_uniform("celestialLayerIndex");
-
-        shader
+        })
     }
 
     fn compile_shader(
@@ -83,7 +73,7 @@ impl ShaderProgram {
             if success == 0 {
                 let mut len = 0;
                 gl.GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
-                let mut buffer = vec![0; len as usize - 1];
+                let mut buffer = vec![0; len as usize];
                 gl.GetShaderInfoLog(
                     shader,
                     len,
@@ -91,8 +81,9 @@ impl ShaderProgram {
                     buffer.as_mut_ptr() as *mut gl::types::GLchar,
                 );
 
-                let error_message =
-                    std::str::from_utf8(&buffer).expect("ShaderInfoLog not valid utf8");
+                let error_message = std::str::from_utf8(&buffer)
+                    .unwrap_or("ShaderInfoLog not valid utf8")
+                    .trim_end_matches('\0');
 
                 gl.DeleteShader(shader);
                 return Err(error_message.to_string());
@@ -112,6 +103,7 @@ impl ShaderProgram {
         unsafe {
             let c_name = CString::new(name).unwrap();
             let location = self.gl.GetUniformLocation(self.program_id, c_name.as_ptr());
+            if location == -1 {}
             self.uniform_locations.insert(name.to_string(), location);
         }
     }
