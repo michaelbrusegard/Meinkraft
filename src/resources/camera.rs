@@ -62,6 +62,9 @@ pub struct Camera {
 }
 
 impl Camera {
+    pub fn z_far(&self) -> f32 {
+        self.z_far
+    }
     pub fn new(
         position: Vec3,
         target: Vec3,

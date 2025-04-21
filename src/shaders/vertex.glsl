@@ -10,9 +10,14 @@ out float LayerIndex;
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
+uniform bool isCelestial;
 
 void main() {
     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(vertexPosition, 1.0);
+
     TexCoord = vertexTexCoord;
-    LayerIndex = vertexLayerIndex;
+
+    if (!isCelestial) {
+        LayerIndex = vertexLayerIndex;
+    }
 }

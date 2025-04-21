@@ -61,6 +61,8 @@ impl ShaderProgram {
         shader.register_uniform("projectionMatrix");
         shader.register_uniform("blockTexture");
         shader.register_uniform("lightLevel");
+        shader.register_uniform("isCelestial");
+        shader.register_uniform("celestialLayerIndex");
 
         shader
     }
@@ -135,6 +137,14 @@ impl ShaderProgram {
         if let Some(&location) = self.uniform_locations.get(name) {
             unsafe {
                 self.gl.Uniform1f(location, value);
+            }
+        }
+    }
+
+    pub fn set_uniform_bool(&self, name: &str, value: bool) {
+        if let Some(&location) = self.uniform_locations.get(name) {
+            unsafe {
+                self.gl.Uniform1i(location, if value { 1 } else { 0 });
             }
         }
     }

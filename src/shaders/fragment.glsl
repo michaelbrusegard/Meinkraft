@@ -6,16 +6,21 @@ in float LayerIndex;
 out vec4 FragColor;
 
 uniform sampler2DArray blockTexture;
-uniform float lightLevel; // Uniform for overall light level
+uniform float lightLevel;
+uniform bool isCelestial;
+uniform float celestialLayerIndex;
 
 void main() {
-    vec4 texColor = texture(blockTexture, vec3(TexCoord, LayerIndex));
+    vec4 texColor;
+    if (isCelestial) {
+        texColor = texture(blockTexture, vec3(TexCoord, celestialLayerIndex));
+        FragColor = texColor;
+    } else {
+        texColor = texture(blockTexture, vec3(TexCoord, LayerIndex));
+        FragColor = vec4(texColor.rgb * lightLevel, texColor.a);
+    }
 
-    // Apply lighting - multiply RGB by lightLevel, keep alpha
-    FragColor = vec4(texColor.rgb * lightLevel, texColor.a);
-
-    // Discard fully transparent fragments (e.g., for glass edges)
-    if (FragColor.a < 0.1) {
+    if (FragColor.a < 0.01) {
         discard;
     }
 }

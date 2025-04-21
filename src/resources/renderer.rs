@@ -7,6 +7,9 @@ pub struct Renderer {
     pub vaos: FnvHashMap<usize, gl::types::GLuint>,
     pub vbos: FnvHashMap<usize, gl::types::GLuint>,
     pub ebos: FnvHashMap<usize, gl::types::GLuint>,
+    celestial_vao: gl::types::GLuint,
+    celestial_vbo: gl::types::GLuint,
+    celestial_ebo: gl::types::GLuint,
 }
 
 impl Renderer {
@@ -22,11 +25,72 @@ impl Renderer {
             gl.CullFace(gl::BACK);
             gl.FrontFace(gl::CCW);
         }
-        Self {
+        let mut renderer = Self {
             gl,
             vaos: FnvHashMap::default(),
             vbos: FnvHashMap::default(),
             ebos: FnvHashMap::default(),
+            celestial_vao: 0,
+            celestial_vbo: 0,
+            celestial_ebo: 0,
+        };
+        renderer.create_celestial_buffers();
+        renderer
+    }
+
+    fn create_celestial_buffers(&mut self) {
+        let vertices: [f32; 20] = [
+            -0.5, -0.5, 0.0, 0.0, 0.0, 0.5, -0.5, 0.0, 1.0, 0.0, 0.5, 0.5, 0.0, 1.0, 1.0, -0.5,
+            0.5, 0.0, 0.0, 1.0,
+        ];
+        let indices: [u32; 6] = [0, 1, 2, 2, 3, 0];
+
+        unsafe {
+            self.gl.GenVertexArrays(1, &mut self.celestial_vao);
+            self.gl.BindVertexArray(self.celestial_vao);
+
+            self.gl.GenBuffers(1, &mut self.celestial_vbo);
+            self.gl.BindBuffer(gl::ARRAY_BUFFER, self.celestial_vbo);
+            self.gl.BufferData(
+                gl::ARRAY_BUFFER,
+                std::mem::size_of_val(&vertices) as gl::types::GLsizeiptr,
+                vertices.as_ptr() as *const _,
+                gl::STATIC_DRAW,
+            );
+
+            self.gl.GenBuffers(1, &mut self.celestial_ebo);
+            self.gl
+                .BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.celestial_ebo);
+            self.gl.BufferData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                std::mem::size_of_val(&indices) as gl::types::GLsizeiptr,
+                indices.as_ptr() as *const _,
+                gl::STATIC_DRAW,
+            );
+
+            let stride = (5 * std::mem::size_of::<f32>()) as gl::types::GLsizei;
+            self.gl
+                .VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE, stride, std::ptr::null());
+            self.gl.EnableVertexAttribArray(0);
+            self.gl.VertexAttribPointer(
+                1,
+                2,
+                gl::FLOAT,
+                gl::FALSE,
+                stride,
+                (3 * std::mem::size_of::<f32>()) as *const _,
+            );
+            self.gl.EnableVertexAttribArray(1);
+
+            self.gl.BindVertexArray(0);
+            self.gl.BindBuffer(gl::ARRAY_BUFFER, 0);
+            self.gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, 0);
+        }
+    }
+
+    pub fn bind_celestial_vao(&self) {
+        unsafe {
+            self.gl.BindVertexArray(self.celestial_vao);
         }
     }
 
@@ -132,6 +196,17 @@ impl Drop for Renderer {
         let mesh_ids: Vec<usize> = self.vaos.keys().copied().collect();
         for mesh_id in mesh_ids {
             self.cleanup_mesh_buffers(mesh_id);
+        }
+        unsafe {
+            if self.celestial_vao != 0 {
+                self.gl.DeleteVertexArrays(1, &self.celestial_vao);
+            }
+            if self.celestial_vbo != 0 {
+                self.gl.DeleteBuffers(1, &self.celestial_vbo);
+            }
+            if self.celestial_ebo != 0 {
+                self.gl.DeleteBuffers(1, &self.celestial_ebo);
+            }
         }
     }
 }
