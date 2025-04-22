@@ -57,6 +57,8 @@ pub struct Config {
     pub exposed_stone_threshold: f64,
     pub seabed_gravel_threshold: f64,
     pub ice_patch_threshold: f64,
+    pub shadow_distance: i32,
+    pub shadow_map_resolution: u32,
 }
 
 impl Config {
@@ -115,6 +117,8 @@ impl Config {
             exposed_stone_threshold: 0.6,
             seabed_gravel_threshold: 0.2,
             ice_patch_threshold: 0.4,
+            shadow_distance: 8,
+            shadow_map_resolution: 4096,
         }
     }
 

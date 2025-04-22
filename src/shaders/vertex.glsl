@@ -9,10 +9,12 @@ out vec2 TexCoord;
 out float LayerIndex;
 out vec3 WorldNormal;
 out vec3 WorldPos;
+out vec4 FragPosLightSpace;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
+uniform mat4 lightSpaceMatrix;
 uniform bool isCelestial;
 
 void main() {
@@ -24,4 +26,5 @@ void main() {
 
     WorldNormal = normalize(mat3(transpose(inverse(modelMatrix))) * vertexNormal);
     WorldPos = worldPosition4.xyz;
+    FragPosLightSpace = lightSpaceMatrix * worldPosition4;
 }

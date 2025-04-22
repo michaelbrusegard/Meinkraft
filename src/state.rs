@@ -25,6 +25,7 @@ pub struct GameState {
     pub renderer: Renderer,
     pub shader_program: ShaderProgram,
     pub star_shader_program: ShaderProgram,
+    pub shadow_shader_program: ShaderProgram,
     pub input_state: InputState,
     pub texture_manager: Arc<TextureManager>,
     pub mesh_registry: MeshRegistry,
@@ -43,12 +44,13 @@ pub struct GameState {
     worker_pool: Option<WorkerPool>,
     pub time_of_day: f32,
     pub total_time: f32,
+    pub light_space_matrix: glam::Mat4,
 }
 
 impl GameState {
     pub fn new(gl: crate::gl::Gl, width: u32, height: u32) -> Self {
         let config = Config::new();
-        let renderer = Renderer::new(gl.clone());
+        let renderer = Renderer::new(gl.clone(), &config);
         let mut shader_program = ShaderProgram::from_sources(
             &renderer.gl,
             include_str!("./shaders/vertex.glsl"),
@@ -68,6 +70,8 @@ impl GameState {
         shader_program.register_uniform("celestialLayerIndex");
         shader_program.register_uniform("cameraPosition");
         shader_program.register_uniform("shininess");
+        shader_program.register_uniform("lightSpaceMatrix");
+        shader_program.register_uniform("shadowMap");
 
         let mut star_shader_program = ShaderProgram::from_sources(
             &renderer.gl,
@@ -81,6 +85,16 @@ impl GameState {
         star_shader_program.register_uniform("starDistance");
         star_shader_program.register_uniform("time");
         star_shader_program.register_uniform("nightFactor");
+
+        let mut shadow_shader_program = ShaderProgram::from_sources(
+            &renderer.gl,
+            include_str!("./shaders/shadow_vertex.glsl"),
+            include_str!("./shaders/shadow_fragment.glsl"),
+        )
+        .expect("Failed to create shadow shader program");
+
+        shadow_shader_program.register_uniform("lightSpaceMatrix");
+        shadow_shader_program.register_uniform("modelMatrix");
 
         let camera = Camera::new(
             Vec3::new(0.0, 20.0, 0.0),
@@ -143,6 +157,7 @@ impl GameState {
             renderer,
             shader_program,
             star_shader_program,
+            shadow_shader_program,
             texture_manager,
             mesh_registry,
             mesh_generator,
@@ -160,6 +175,7 @@ impl GameState {
             worker_pool: None,
             time_of_day: 0.5,
             total_time: 0.0,
+            light_space_matrix: glam::Mat4::IDENTITY,
         }
     }
 

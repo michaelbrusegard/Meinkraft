@@ -66,7 +66,7 @@ impl Camera {
         self.z_far
     }
     pub fn new(position: Vec3, target: Vec3, up: Vec3, aspect_ratio: f32, config: &Config) -> Self {
-        let fov_y_radians = 70.0f32.to_radians();
+        let fov_y_radians = 90.0f32.to_radians();
         let z_near = 0.1;
         let z_far = (config.render_distance as f32 + 1.0) * (config.chunk_width as f32) * 1.5;
 

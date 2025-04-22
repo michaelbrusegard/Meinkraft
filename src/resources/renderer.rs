@@ -1,4 +1,5 @@
 use crate::gl;
+use crate::resources::Config;
 use fnv::FnvHashMap;
 use glam::Vec3;
 use rand::Rng;
@@ -14,13 +15,18 @@ pub struct Renderer {
     star_vao: gl::types::GLuint,
     star_vbo: gl::types::GLuint,
     pub num_stars: usize,
+    shadow_fbo: gl::types::GLuint,
+    shadow_map_texture: gl::types::GLuint,
+    shadow_map_resolution: u32,
 }
 
 impl Renderer {
-    pub fn new(gl: gl::Gl) -> Self {
+    pub fn new(gl: gl::Gl, config: &Config) -> Self {
         unsafe {
             gl.ClearColor(0.1, 0.1, 0.1, 1.0);
             gl.Enable(gl::DEPTH_TEST);
+            gl.DepthMask(gl::TRUE);
+            gl.Clear(gl::DEPTH_BUFFER_BIT);
             gl.DepthFunc(gl::LESS);
             gl.Enable(gl::BLEND);
             gl.BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
@@ -40,9 +46,15 @@ impl Renderer {
             star_vao: 0,
             star_vbo: 0,
             num_stars: 0,
+            shadow_fbo: 0,
+            shadow_map_texture: 0,
+            shadow_map_resolution: config.shadow_map_resolution,
         };
         renderer.create_celestial_buffers();
         renderer.create_star_buffers();
+        if let Err(e) = renderer.create_shadow_fbo() {
+            eprintln!("Failed to create shadow FBO: {}", e);
+        }
         renderer
     }
 
@@ -152,6 +164,83 @@ impl Renderer {
 
             self.gl.BindVertexArray(0);
             self.gl.BindBuffer(gl::ARRAY_BUFFER, 0);
+        }
+    }
+
+    fn create_shadow_fbo(&mut self) -> Result<(), String> {
+        unsafe {
+            self.gl.GenTextures(1, &mut self.shadow_map_texture);
+            self.gl.BindTexture(gl::TEXTURE_2D, self.shadow_map_texture);
+            self.gl.TexImage2D(
+                gl::TEXTURE_2D,
+                0,
+                gl::DEPTH_COMPONENT24 as i32,
+                self.shadow_map_resolution as i32,
+                self.shadow_map_resolution as i32,
+                0,
+                gl::DEPTH_COMPONENT,
+                gl::FLOAT,
+                std::ptr::null(),
+            );
+            self.gl
+                .TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
+            self.gl
+                .TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+            self.gl.TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_WRAP_S,
+                gl::CLAMP_TO_BORDER as i32,
+            );
+            self.gl.TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_WRAP_T,
+                gl::CLAMP_TO_BORDER as i32,
+            );
+            let border_color: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+            self.gl.TexParameterfv(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_BORDER_COLOR,
+                border_color.as_ptr(),
+            );
+
+            self.gl.GenFramebuffers(1, &mut self.shadow_fbo);
+            self.gl.BindFramebuffer(gl::FRAMEBUFFER, self.shadow_fbo);
+            self.gl.FramebufferTexture2D(
+                gl::FRAMEBUFFER,
+                gl::DEPTH_ATTACHMENT,
+                gl::TEXTURE_2D,
+                self.shadow_map_texture,
+                0,
+            );
+            self.gl.DrawBuffer(gl::NONE);
+            self.gl.ReadBuffer(gl::NONE);
+
+            if self.gl.CheckFramebufferStatus(gl::FRAMEBUFFER) != gl::FRAMEBUFFER_COMPLETE {
+                self.gl.BindFramebuffer(gl::FRAMEBUFFER, 0);
+                self.gl.BindTexture(gl::TEXTURE_2D, 0);
+                self.gl.DeleteTextures(1, &self.shadow_map_texture);
+                self.gl.DeleteFramebuffers(1, &self.shadow_fbo);
+                self.shadow_map_texture = 0;
+                self.shadow_fbo = 0;
+                return Err("Framebuffer is not complete!".to_string());
+            }
+
+            self.gl.BindFramebuffer(gl::FRAMEBUFFER, 0);
+            self.gl.BindTexture(gl::TEXTURE_2D, 0);
+        }
+        Ok(())
+    }
+
+    fn cleanup_shadow_fbo(&mut self) {
+        unsafe {
+            if self.shadow_fbo != 0 {
+                self.gl.DeleteFramebuffers(1, &self.shadow_fbo);
+                self.shadow_fbo = 0;
+            }
+            if self.shadow_map_texture != 0 {
+                self.gl.DeleteTextures(1, &self.shadow_map_texture);
+                self.shadow_map_texture = 0;
+            }
         }
     }
 
@@ -272,6 +361,35 @@ impl Renderer {
             self.gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
     }
+
+    pub fn bind_shadow_fbo(&self) {
+        unsafe {
+            self.gl.Viewport(
+                0,
+                0,
+                self.shadow_map_resolution as i32,
+                self.shadow_map_resolution as i32,
+            );
+            self.gl.BindFramebuffer(gl::FRAMEBUFFER, self.shadow_fbo);
+            self.gl.Clear(gl::DEPTH_BUFFER_BIT);
+            self.gl.CullFace(gl::FRONT);
+        }
+    }
+
+    pub fn unbind_shadow_fbo(&self, window_width: i32, window_height: i32) {
+        unsafe {
+            self.gl.BindFramebuffer(gl::FRAMEBUFFER, 0);
+            self.gl.Viewport(0, 0, window_width, window_height);
+            self.gl.CullFace(gl::BACK);
+        }
+    }
+
+    pub fn bind_shadow_map_texture(&self, texture_unit: gl::types::GLenum) {
+        unsafe {
+            self.gl.ActiveTexture(texture_unit);
+            self.gl.BindTexture(gl::TEXTURE_2D, self.shadow_map_texture);
+        }
+    }
 }
 
 impl Drop for Renderer {
@@ -297,5 +415,6 @@ impl Drop for Renderer {
                 self.gl.DeleteBuffers(1, &self.star_vbo);
             }
         }
+        self.cleanup_shadow_fbo();
     }
 }

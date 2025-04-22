@@ -1,6 +1,7 @@
 use crate::components::{
     chunk_coord_to_aabb_center, get_chunk_extents, ChunkCoord, Renderable, Transform,
 };
+use crate::gl;
 use crate::resources::Config;
 use crate::state::GameState;
 use glam::{Mat3, Mat4, Quat, Vec3};
@@ -40,6 +41,96 @@ impl RenderSystem {
 
         let light_direction = sun_dir.lerp(moon_dir, 1.0 - sun_blend_factor).normalize();
         let light_color = sun_color.lerp(moon_color, 1.0 - sun_blend_factor);
+
+        let shadow_distance_world = config.shadow_distance as f32 * config.chunk_width as f32;
+        let light_offset_distance = shadow_distance_world * 1.5;
+        let light_pos = game_state.camera.position - light_direction * light_offset_distance;
+
+        let light_view_matrix = Mat4::look_at_rh(light_pos, game_state.camera.position, Vec3::Y);
+
+        let shadow_map_world_size = shadow_distance_world * 2.0;
+        let world_units_per_texel = shadow_map_world_size / config.shadow_map_resolution as f32;
+
+        let shadow_area_center_world = game_state.camera.position;
+
+        let shadow_area_center_light_view =
+            light_view_matrix.transform_point3(shadow_area_center_world);
+
+        let snapped_center_x = (shadow_area_center_light_view.x / world_units_per_texel).floor()
+            * world_units_per_texel;
+        let snapped_center_y = (shadow_area_center_light_view.y / world_units_per_texel).floor()
+            * world_units_per_texel;
+
+        let half_size = shadow_distance_world;
+        let snapped_left = snapped_center_x - half_size;
+        let snapped_right = snapped_center_x + half_size;
+        let snapped_bottom = snapped_center_y - half_size;
+        let snapped_top = snapped_center_y + half_size;
+
+        let near_plane = 1.0;
+        let far_plane = light_offset_distance + shadow_distance_world;
+
+        let light_projection_matrix = Mat4::orthographic_rh(
+            snapped_left,
+            snapped_right,
+            snapped_bottom,
+            snapped_top,
+            far_plane,
+            near_plane,
+        );
+
+        game_state.light_space_matrix = light_projection_matrix * light_view_matrix;
+
+        let mut viewport = [0i32; 4];
+        unsafe {
+            game_state
+                .renderer
+                .gl
+                .GetIntegerv(gl::VIEWPORT, viewport.as_mut_ptr());
+        }
+        let window_width = viewport[2];
+        let window_height = viewport[3];
+
+        game_state.renderer.bind_shadow_fbo();
+
+        game_state.shadow_shader_program.use_program();
+        game_state
+            .shadow_shader_program
+            .set_uniform_mat4("lightSpaceMatrix", &game_state.light_space_matrix);
+
+        for (_entity, (transform, renderable, _chunk_coord)) in game_state
+            .world
+            .query::<(&Transform, &Renderable, &ChunkCoord)>()
+            .iter()
+        {
+            if let Some(opaque_mesh_id) = renderable.opaque_mesh_id {
+                if let Some(mesh) = game_state.mesh_registry.meshes.get(&opaque_mesh_id) {
+                    if let Some(vao) = game_state.renderer.vaos.get(&opaque_mesh_id) {
+                        let model_matrix = transform.model_matrix();
+                        game_state
+                            .shadow_shader_program
+                            .set_uniform_mat4("modelMatrix", &model_matrix);
+
+                        unsafe {
+                            game_state.renderer.gl.BindVertexArray(*vao);
+                            let index_count = mesh.indices.len() as i32;
+                            if index_count > 0 {
+                                game_state.renderer.gl.DrawElements(
+                                    gl::TRIANGLES,
+                                    index_count,
+                                    gl::UNSIGNED_INT,
+                                    std::ptr::null(),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        game_state
+            .renderer
+            .unbind_shadow_fbo(window_width, window_height);
 
         game_state.renderer.clear(sky_color);
 
@@ -124,6 +215,11 @@ impl RenderSystem {
         game_state
             .shader_program
             .set_uniform_float("shininess", config.material_shininess);
+        game_state
+            .shader_program
+            .set_uniform_mat4("lightSpaceMatrix", &game_state.light_space_matrix);
+        game_state.renderer.bind_shadow_map_texture(gl::TEXTURE1);
+        game_state.shader_program.set_uniform_int("shadowMap", 1);
 
         let sun_layer = game_state
             .texture_manager
@@ -200,6 +296,9 @@ impl RenderSystem {
         game_state
             .shader_program
             .set_uniform_bool("isCelestial", false);
+
+        game_state.texture_manager.bind_texture_array(gl::TEXTURE0);
+        game_state.shader_program.set_uniform_int("blockTexture", 0);
 
         for (_entity, (transform, renderable, chunk_coord)) in game_state
             .world
