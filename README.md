@@ -2,6 +2,8 @@
 
 A simple voxel engine inspired by Minecraft, built with Rust and OpenGL.
 
+Here is a link to my [Report](report.pdf).
+
 ## Building
 
 To build the project, ensure you have Rust and Cargo installed. Then, run the following command in the project's root directory:
@@ -25,6 +27,7 @@ cargo run
 ```
 
 ## Screenshots
+
 I took these during development. Ordered from newest to oldest.
 <img width="1656" alt="shadows" src="https://github.com/user-attachments/assets/3f617fa8-0aac-4f3b-bd7d-7eba47edcc22" />
 <img width="1656" alt="specular-light" src="https://github.com/user-attachments/assets/263b7780-f6db-494e-9c3f-87738ed92f0e" />
