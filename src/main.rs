@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    let template = ConfigTemplateBuilder::new().with_alpha_size(8);
+    let template = ConfigTemplateBuilder::new().with_alpha_size(0);
     let mut app = App::new(template);
     event_loop.run_app(&mut app)?;
 
